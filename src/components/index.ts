@@ -12,3 +12,5 @@ export { default as ExerciseCard } from './ExerciseCard';
 export { default as WorkoutSummaryCard } from './WorkoutSummaryCard';
 export { default as PersonalBestBadge } from './PersonalBestBadge';
 export { default as StatChart } from './StatChart';
+export { default as PercentChart } from './PercentChart';
+export { default as StreakCalendarModal } from './StreakCalendarModal';

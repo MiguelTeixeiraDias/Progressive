@@ -70,6 +70,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontFamily: family.display,
     fontSize: 22,
+    lineHeight: 26,
     letterSpacing: 1,
     includeFontPadding: false,
   },

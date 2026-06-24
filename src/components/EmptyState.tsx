@@ -55,6 +55,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontFamily: family.display,
     fontSize: font.h2,
+    lineHeight: Math.ceil(font.h2 * 1.15),
     letterSpacing: 1,
     textAlign: 'center',
     includeFontPadding: false,

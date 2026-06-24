@@ -79,6 +79,17 @@ export function weekdayShort(d: DateLike): string {
   return new Date(d).toLocaleDateString(undefined, { weekday: 'short' });
 }
 
+const MONTHS_SHORT = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+
+/** Locale-stable "4 Mar" — used for streak date ranges where day-then-month reads cleanest. */
+export function dayMonth(d: DateLike): string {
+  const x = new Date(d);
+  return `${x.getDate()} ${MONTHS_SHORT[x.getMonth()]}`;
+}
+
 export function timeOfDay(): 'morning' | 'afternoon' | 'evening' {
   const h = new Date().getHours();
   if (h < 12) return 'morning';

@@ -70,5 +70,5 @@ const styles = StyleSheet.create({
   body: { flex: 1 },
   title: { color: colors.text, fontFamily: family.semibold, fontSize: font.body },
   caption: { color: colors.textDim, fontFamily: family.body, fontSize: font.small, marginTop: 2 },
-  value: { fontFamily: family.display, fontSize: font.h2, letterSpacing: 0.5, includeFontPadding: false },
+  value: { fontFamily: family.display, fontSize: font.h2, lineHeight: Math.ceil(font.h2 * 1.15), letterSpacing: 0.5, includeFontPadding: false },
 });

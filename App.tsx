@@ -90,13 +90,17 @@ const styles = StyleSheet.create({
   markText: {
     color: colors.bg,
     fontSize: 40,
+    lineHeight: 46,
     fontFamily: family.display,
+    includeFontPadding: false,
     marginTop: 6,
   },
   brand: {
     color: colors.text,
     fontSize: 34,
+    lineHeight: 40,
     fontFamily: family.display,
+    includeFontPadding: false,
     letterSpacing: 2,
     marginTop: spacing.lg,
   },

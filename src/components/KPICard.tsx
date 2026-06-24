@@ -47,7 +47,7 @@ export default function KPICard({
 
   const numberStyle = [
     styles.number,
-    { color: numberColor, fontSize: numberSize, lineHeight: numberSize * 0.96 },
+    { color: numberColor, fontSize: numberSize, lineHeight: Math.ceil(numberSize * 1.12) },
   ];
 
   return (

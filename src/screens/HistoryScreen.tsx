@@ -9,7 +9,7 @@ import { WorkoutSession } from '../types';
 import { colors, family, font, spacing } from '../theme';
 import { dayKey, relativeDay } from '../utils/date';
 import { formatVolume } from '../utils/format';
-import { totalVolume, workoutsThisWeek } from '../utils/stats';
+import { totalVolume, workoutAvgPctIncrease, workoutsThisWeek } from '../utils/stats';
 
 export default function HistoryScreen({ navigation }: TabScreenProps<'History'>) {
   const workouts = useStore((s) => s.workouts);
@@ -79,6 +79,7 @@ export default function HistoryScreen({ navigation }: TabScreenProps<'History'>)
             <View style={styles.cardWrap}>
               <WorkoutSummaryCard
                 session={item}
+                pctIncrease={workoutAvgPctIncrease(workouts, item)}
                 onPress={() => navigation.navigate('WorkoutDetail', { sessionId: item.id })}
                 onRepeat={() => repeat(item.id)}
               />
@@ -93,7 +94,7 @@ export default function HistoryScreen({ navigation }: TabScreenProps<'History'>)
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   head: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.md },
-  title: { color: colors.text, fontFamily: family.display, fontSize: font.display, letterSpacing: 1, includeFontPadding: false },
+  title: { color: colors.text, fontFamily: family.display, fontSize: font.display, lineHeight: Math.ceil(font.display * 1.15), letterSpacing: 1, includeFontPadding: false },
   subtitle: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 1.2, marginTop: 2 },
   list: { paddingHorizontal: spacing.lg, paddingBottom: 100 },
   statStrip: {
@@ -107,7 +108,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   statItem: { flex: 1, alignItems: 'center' },
-  statValue: { color: colors.text, fontFamily: family.display, fontSize: 32, includeFontPadding: false },
+  statValue: { color: colors.text, fontFamily: family.display, fontSize: 32, lineHeight: 37, includeFontPadding: false },
   statLabel: { color: colors.textFaint, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 0.8, marginTop: 2 },
   statDivider: { width: 1, height: 34, backgroundColor: colors.border },
   sectionHeader: { color: colors.textDim, fontFamily: family.semibold, fontSize: font.label, letterSpacing: 1.4, marginBottom: spacing.md, marginTop: spacing.sm },

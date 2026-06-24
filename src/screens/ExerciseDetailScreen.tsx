@@ -109,7 +109,7 @@ export default function ExerciseDetailScreen({ route, navigation }: RootStackScr
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   header: { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.md },
-  title: { color: colors.text, fontFamily: family.display, fontSize: font.h1, letterSpacing: 0.5, includeFontPadding: false },
+  title: { color: colors.text, fontFamily: family.display, fontSize: font.h1, lineHeight: Math.ceil(font.h1 * 1.15), letterSpacing: 0.5, includeFontPadding: false },
   closeBtn: { width: 36, height: 36, borderRadius: radius.sm, backgroundColor: colors.card3, alignItems: 'center', justifyContent: 'center' },
   content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.md },
   tiles: { flexDirection: 'row', gap: spacing.md },

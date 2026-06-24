@@ -1,38 +1,33 @@
-import React, { useMemo } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import React, { useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
   Card,
   EmptyState,
-  KPICard,
-  MuscleGroupBadge,
+  PercentChart,
   PrimaryButton,
-  ProgressBar,
   SectionHeader,
-  StatChart,
+  StreakCalendarModal,
   WorkoutSummaryCard,
 } from '../components';
 import { TabScreenProps } from '../navigation/types';
 import { useStore } from '../store/useStore';
-import { MUSCLE_GROUPS } from '../types';
-import { colors, family, font, radius, spacing } from '../theme';
+import { colors, displayText, family, font, radius, spacing } from '../theme';
 import { withAlpha } from '../utils/color';
-import { DAY_MS, fullDate, startOfDay, timeOfDay } from '../utils/date';
-import { formatVolume, formatWeight } from '../utils/format';
+import { dayKey, fullDate, timeOfDay } from '../utils/date';
+import { formatWeight, signedPct } from '../utils/format';
 import {
   currentStreak,
-  dailyVolumeThisWeek,
+  dailyPctIncreaseThisWeek,
+  dayAvgPctIncrease,
+  hasComparisonData,
   lastWorkout,
-  longestStreak,
   mostImproved,
-  muscleGroupsThisWeek,
-  muscleVolumeThisWeek,
-  overloadLabel,
-  overloadScore,
-  volumeLastWeek,
-  volumeThisWeek,
-  workoutsThisWeek,
+  muscleGridThisWeek,
+  nextTarget,
+  weekAvgPctIncrease,
 } from '../utils/stats';
 
 const GREETING: Record<ReturnType<typeof timeOfDay>, string> = {
@@ -41,13 +36,7 @@ const GREETING: Record<ReturnType<typeof timeOfDay>, string> = {
   evening: 'Good evening',
 };
 
-function recoveryFor(daysSince: number | null) {
-  if (daysSince === null) return { word: 'NEW', line: 'Log your first session to begin tracking.', pct: 0, ready: false };
-  if (daysSince <= 0) return { word: 'PRIMED', line: 'Logged today — recovery starts now.', pct: 0.25, ready: false };
-  if (daysSince === 1) return { word: 'BUILDING', line: 'One day of recovery in the bank.', pct: 0.55, ready: false };
-  if (daysSince === 2) return { word: 'READY', line: 'Recovered and ready to progress.', pct: 0.85, ready: true };
-  return { word: 'FRESH', line: `${daysSince} days of rest — time to train.`, pct: 1, ready: true };
-}
+const DAY_LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
 export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
   const workouts = useStore((s) => s.workouts);
@@ -57,39 +46,32 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
   const repeatLastWorkout = useStore((s) => s.repeatLastWorkout);
   const startWorkoutFrom = useStore((s) => s.startWorkoutFrom);
 
+  const [streakOpen, setStreakOpen] = useState(false);
+
   const m = useMemo(() => {
-    const volTW = volumeThisWeek(workouts);
-    const volLW = volumeLastWeek(workouts);
-    const score = overloadScore(workouts);
     const last = lastWorkout(workouts);
-    const daysSince = last
-      ? Math.round((startOfDay(Date.now()).getTime() - startOfDay(last.startedAt).getTime()) / DAY_MS)
-      : null;
     return {
-      volTW,
-      volTrend: volLW > 0 ? ((volTW - volLW) / volLW) * 100 : null,
-      wTW: workoutsThisWeek(workouts),
       streak: currentStreak(workouts),
-      longest: longestStreak(workouts),
-      score,
-      scoreLabel: overloadLabel(score),
       improved: mostImproved(workouts),
-      muscles: muscleGroupsThisWeek(workouts),
+      muscleGrid: muscleGridThisWeek(workouts),
+      weekPct: weekAvgPctIncrease(workouts),
+      daily: dailyPctIncreaseThisWeek(workouts),
+      hasComparison: hasComparisonData(workouts),
+      target: nextTarget(workouts),
       last,
-      daily: dailyVolumeThisWeek(workouts),
-      muscleVol: muscleVolumeThisWeek(workouts),
-      recovery: recoveryFor(daysSince),
+      lastPct: last ? dayAvgPctIncrease(workouts, dayKey(last.startedAt)) : null,
     };
   }, [workouts]);
 
-  const goal = settings.weeklyGoal;
-  const maxMuscle = Math.max(1, ...m.muscleVol.map((x) => x.value));
-  const topMuscleValue = maxMuscle;
+  const todayCol = (new Date().getDay() + 6) % 7;
+  const trainedThisWeek = m.muscleGrid.some((row) => row.days.some(Boolean));
+  const weekPctColor =
+    m.weekPct === null ? colors.text : m.weekPct >= 0 ? colors.primary : colors.text;
 
   const subtitle =
     m.streak >= 2
       ? `${m.streak}-day streak. Keep the line unbroken.`
-      : m.wTW > 0
+      : m.last
         ? 'Momentum is building. Stack another clean session.'
         : "A blank page. Log today's first set.";
 
@@ -111,11 +93,19 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
         <View style={styles.masthead}>
           <View style={styles.mastheadRow}>
             <Text style={styles.eyebrow}>{fullDate(Date.now()).toUpperCase()}</Text>
-            {m.streak > 0 ? (
+            <Pressable
+              onPress={() => setStreakOpen(true)}
+              hitSlop={8}
+              style={({ pressed }) => [styles.streakChip, pressed && styles.streakChipPressed]}
+            >
+              <Ionicons name="flame" size={13} color={colors.primary} />
               <Text style={styles.streakTag}>STREAK · {m.streak}</Text>
-            ) : null}
+            </Pressable>
           </View>
-          <Text style={styles.greeting}>{GREETING[timeOfDay()].toUpperCase()},{'\n'}{settings.userName.toUpperCase()}</Text>
+          <Text style={styles.greeting}>
+            {GREETING[timeOfDay()].toUpperCase()},{'\n'}
+            {settings.userName.toUpperCase()}
+          </Text>
           <Text style={styles.subtitle}>{subtitle}</Text>
         </View>
 
@@ -132,29 +122,36 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
           ) : null}
         </View>
 
-        {/* Feature KPI: weekly volume */}
-        <KPICard
-          label="Total volume this week"
-          value={m.volTW}
-          unit="kg"
-          accent={colors.primary}
-          feature
-          countUp
-          format={formatVolume}
-          trend={m.volTrend}
-        >
-          <StatChart data={m.daily} color={colors.primary} height={92} />
-        </KPICard>
-
-        {/* Compact KPI trio */}
-        <View style={styles.trio}>
-          <KPICard style={styles.trioItem} label="Workouts" value={m.wTW} countUp caption={`GOAL ${goal}`} />
-          <KPICard style={styles.trioItem} label="Streak" value={m.streak} countUp caption={`BEST ${m.longest}`} />
-          <KPICard style={styles.trioItem} label="Overload" value={m.score} countUp caption={m.scoreLabel.toUpperCase()} />
-        </View>
+        {/* Feature: progressive-overload increase this week */}
+        <Card style={styles.feature}>
+          <Text style={styles.cardLabel}>INCREASE THIS WEEK</Text>
+          {m.hasComparison ? (
+            <>
+              <View style={styles.featureValueRow}>
+                <Text style={[styles.featureValue, { color: weekPctColor }]}>
+                  {m.weekPct === null ? '—' : signedPct(m.weekPct)}
+                </Text>
+                {m.weekPct !== null ? <Text style={styles.featureUnit}>avg overload</Text> : null}
+              </View>
+              <Text style={styles.featureCaption}>
+                {m.weekPct === null
+                  ? 'No comparable lifts logged yet this week.'
+                  : 'Average per-exercise gain vs your previous sessions.'}
+              </Text>
+              <PercentChart data={m.daily} height={104} style={styles.featureChart} />
+            </>
+          ) : (
+            <View style={styles.featureEmpty}>
+              <Ionicons name="trending-up" size={22} color={colors.primary} />
+              <Text style={styles.featureEmptyText}>
+                First logged session — comparison starts next time you train these lifts.
+              </Text>
+            </View>
+          )}
+        </Card>
 
         {/* Most improved — wide editorial card */}
-        <Card style={styles.improved}>
+        <Card>
           <Text style={styles.cardLabel}>MOST IMPROVED LIFT</Text>
           {m.improved ? (
             <>
@@ -171,49 +168,69 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
           )}
         </Card>
 
-        {/* Recovery */}
-        <Card style={styles.recovery}>
-          <View style={styles.recoveryHead}>
-            <Text style={styles.cardLabel}>RECOVERY STATUS</Text>
-            <Text style={[styles.recoveryWord, { color: m.recovery.ready ? colors.primary : colors.text }]}>
-              {m.recovery.word}
-            </Text>
-          </View>
-          <ProgressBar progress={m.recovery.pct} height={6} style={{ marginTop: spacing.md }} />
-          <Text style={styles.recoveryLine}>{m.recovery.line}</Text>
-        </Card>
-
-        {/* Muscle focus */}
+        {/* Muscle focus — 6x7 weekly block grid */}
         <View style={styles.section}>
-          <SectionHeader title="Muscle Focus" subtitle="Training volume by group · this week" />
+          <SectionHeader title="Muscle Focus" subtitle="Groups trained by day · this week" />
           <Card>
-            {topMuscleValue <= 1 ? (
-              <EmptyState icon="pulse-outline" title="No muscle data" message="Finish a session this week to see your split." />
-            ) : (
-              m.muscleVol.map((row) => {
-                const isTop = row.value === topMuscleValue && row.value > 0;
-                return (
-                  <View key={row.group} style={styles.muscleRow}>
-                    <Text style={styles.muscleName}>{row.group.toUpperCase()}</Text>
-                    <ProgressBar
-                      progress={row.value / maxMuscle}
-                      color={isTop ? colors.primary : withAlpha(colors.text, 0.5)}
-                      height={6}
-                      style={styles.muscleBar}
-                    />
-                    <Text style={styles.muscleValue}>{formatVolume(row.value)}</Text>
+            {trainedThisWeek ? (
+              <>
+                <View style={styles.gridHeader}>
+                  <View style={styles.gridNameSpacer} />
+                  <View style={styles.gridBlocks}>
+                    {DAY_LETTERS.map((d, i) => (
+                      <Text
+                        key={i}
+                        style={[styles.gridDayLetter, i === todayCol && styles.gridDayLetterToday]}
+                      >
+                        {d}
+                      </Text>
+                    ))}
                   </View>
-                );
-              })
+                </View>
+                {m.muscleGrid.map((row) => (
+                  <View key={row.group} style={styles.gridRow}>
+                    <Text style={styles.gridName}>{row.group.toUpperCase()}</Text>
+                    <View style={styles.gridBlocks}>
+                      {row.days.map((on, i) => (
+                        <View
+                          key={i}
+                          style={[styles.block, on ? styles.blockOn : styles.blockOff]}
+                        />
+                      ))}
+                    </View>
+                  </View>
+                ))}
+              </>
+            ) : (
+              <EmptyState icon="grid-outline" title="No sessions this week" message="Train a group and its week lights up here." />
             )}
           </Card>
-          {m.muscles.length > 0 ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-              {MUSCLE_GROUPS.map((g) => (
-                <MuscleGroupBadge key={g} group={g} active={m.muscles.includes(g)} />
-              ))}
-            </ScrollView>
-          ) : null}
+        </View>
+
+        {/* Next target — progression coaching insight */}
+        <View style={styles.section}>
+          <SectionHeader title="Next Target" subtitle="The lift most ready to progress" />
+          <Card>
+            <Text style={styles.cardLabel}>READY TO PROGRESS</Text>
+            {m.target ? (
+              <>
+                <Text style={styles.targetName}>{m.target.name.toUpperCase()}</Text>
+                <View style={styles.targetCueRow}>
+                  <Ionicons name="arrow-up-circle" size={16} color={colors.primary} />
+                  <Text style={styles.targetCue}>
+                    Try +{formatWeight(m.target.increment)}kg next time
+                  </Text>
+                </View>
+                <Text style={styles.targetMeta}>
+                  Last top set · {formatWeight(m.target.topWeight)}kg × {m.target.reps} reps
+                </Text>
+              </>
+            ) : (
+              <Text style={styles.improvedLine}>
+                Log a lift twice without dropping volume and your next target appears here.
+              </Text>
+            )}
+          </Card>
         </View>
 
         {/* Last session */}
@@ -222,6 +239,7 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
           {m.last ? (
             <WorkoutSummaryCard
               session={m.last}
+              pctIncrease={m.lastPct}
               onPress={() => navigation.navigate('WorkoutDetail', { sessionId: m.last!.id })}
               onRepeat={() => repeatSession(m.last!.id)}
             />
@@ -236,6 +254,8 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
           )}
         </View>
       </ScrollView>
+
+      <StreakCalendarModal visible={streakOpen} onClose={() => setStreakOpen(false)} sessions={workouts} />
     </SafeAreaView>
   );
 }
@@ -247,39 +267,63 @@ const styles = StyleSheet.create({
   masthead: { marginTop: spacing.sm },
   mastheadRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   eyebrow: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 1.5 },
+  streakChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: colors.primaryDim,
+  },
+  streakChipPressed: { backgroundColor: colors.primarySoft },
   streakTag: { color: colors.primary, fontFamily: family.semibold, fontSize: font.tiny, letterSpacing: 1.5 },
   greeting: {
+    ...displayText(46, 0.5),
     color: colors.text,
-    fontFamily: family.display,
-    fontSize: 46,
-    lineHeight: 44,
-    letterSpacing: 0.5,
     marginTop: spacing.md,
-    includeFontPadding: false,
   },
   subtitle: { color: colors.textDim, fontFamily: family.body, fontSize: font.body, marginTop: spacing.md, lineHeight: 21 },
 
   ctas: { gap: spacing.sm },
 
-  trio: { flexDirection: 'row', gap: spacing.md },
-  trioItem: { flex: 1 },
-
-  improved: {},
   cardLabel: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 1.6 },
+
+  // Feature card
+  feature: { minHeight: 150 },
+  featureValueRow: { flexDirection: 'row', alignItems: 'flex-end', marginTop: spacing.sm },
+  featureValue: { ...displayText(60) },
+  featureUnit: { color: colors.textDim, fontFamily: family.medium, fontSize: font.label, marginLeft: 8, marginBottom: 9 },
+  featureCaption: { color: colors.textFaint, fontFamily: family.body, fontSize: font.small, marginTop: spacing.sm },
+  featureChart: { marginTop: spacing.lg },
+  featureEmpty: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.md },
+  featureEmptyText: { color: colors.textDim, fontFamily: family.body, fontSize: font.small, lineHeight: 19, flex: 1 },
+
+  // Most improved
   improvedRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginTop: spacing.sm },
-  improvedName: { color: colors.text, fontFamily: family.display, fontSize: font.h1, letterSpacing: 0.5, flex: 1, includeFontPadding: false },
-  improvedDelta: { color: colors.primary, fontFamily: family.display, fontSize: font.h1, includeFontPadding: false, marginLeft: spacing.md },
+  improvedName: { ...displayText(font.h1, 0.5), color: colors.text, flex: 1 },
+  improvedDelta: { ...displayText(font.h1), color: colors.primary, marginLeft: spacing.md },
   improvedLine: { color: colors.textDim, fontFamily: family.body, fontSize: font.small, marginTop: spacing.sm, lineHeight: 19 },
 
-  recovery: {},
-  recoveryHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
-  recoveryWord: { fontFamily: family.display, fontSize: font.h1, letterSpacing: 1, includeFontPadding: false },
-  recoveryLine: { color: colors.textDim, fontFamily: family.body, fontSize: font.small, marginTop: spacing.md },
-
   section: {},
-  muscleRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 7 },
-  muscleName: { color: colors.text, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 0.8, width: 80 },
-  muscleBar: { flex: 1, marginHorizontal: spacing.md },
-  muscleValue: { color: colors.textDim, fontFamily: family.display, fontSize: font.lg, width: 52, textAlign: 'right', includeFontPadding: false },
-  chips: { gap: spacing.sm, paddingTop: spacing.md },
+
+  // Muscle grid
+  gridHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm },
+  gridNameSpacer: { width: 72 },
+  gridRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 5 },
+  gridName: { color: colors.text, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 0.8, width: 72 },
+  gridBlocks: { flex: 1, flexDirection: 'row', gap: 6 },
+  gridDayLetter: { flex: 1, textAlign: 'center', color: colors.textFaint, fontFamily: family.medium, fontSize: font.tiny },
+  gridDayLetterToday: { color: colors.text },
+  block: { flex: 1, height: 18, borderRadius: radius.xs },
+  blockOn: { backgroundColor: colors.primary },
+  blockOff: { backgroundColor: withAlpha(colors.text, 0.07), borderWidth: 1, borderColor: colors.border },
+
+  // Next target
+  targetName: { ...displayText(font.h1, 0.5), color: colors.text, marginTop: spacing.sm },
+  targetCueRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xs },
+  targetCue: { color: colors.primary, fontFamily: family.semibold, fontSize: font.body, letterSpacing: 0.3 },
+  targetMeta: { color: colors.textDim, fontFamily: family.body, fontSize: font.small, marginTop: spacing.sm },
 });

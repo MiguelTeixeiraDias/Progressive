@@ -110,7 +110,7 @@ export default function ExercisesScreen({ navigation }: TabScreenProps<'Exercise
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   head: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.md },
-  title: { color: colors.text, fontFamily: family.display, fontSize: font.display, letterSpacing: 1, includeFontPadding: false },
+  title: { color: colors.text, fontFamily: family.display, fontSize: font.display, lineHeight: Math.ceil(font.display * 1.15), letterSpacing: 1, includeFontPadding: false },
   subtitle: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 1.2, marginTop: 2 },
   searchWrap: {
     flexDirection: 'row',

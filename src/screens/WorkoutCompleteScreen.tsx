@@ -10,7 +10,12 @@ import { formatDuration, formatVolume, formatWeight, signedPct } from '../utils/
 
 export default function WorkoutCompleteScreen({ route, navigation }: RootStackScreenProps<'WorkoutComplete'>) {
   const s = route.params.summary;
-  const goHome = () => navigation.navigate('Tabs', { screen: 'Home' });
+  // Reset the root stack to a fresh Tabs route so the completion screen never
+  // lingers underneath the tabs. Without this, navigating back leaves
+  // WorkoutComplete in the stack and every later screen reads as a modal stacked
+  // on top of it (the swipe-down-returns-to-complete bug). A bare Tabs route lets
+  // the tab navigator re-initialise with all tabs at its default Home screen.
+  const goHome = () => navigation.reset({ index: 0, routes: [{ name: 'Tabs' }] });
 
   const message =
     s.newPRs.length > 0
@@ -102,7 +107,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   kicker: { color: colors.primary, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 2, marginTop: spacing.xl },
-  title: { color: colors.text, fontFamily: family.display, fontSize: 44, letterSpacing: 1, marginTop: 4, includeFontPadding: false },
+  title: { color: colors.text, fontFamily: family.display, fontSize: 44, lineHeight: 51, letterSpacing: 1, marginTop: 4, includeFontPadding: false },
   subtitle: { color: colors.textDim, fontFamily: family.medium, fontSize: font.label, letterSpacing: 1.5, marginTop: 2 },
   grid: { width: '100%', gap: spacing.md, marginTop: spacing.xxl },
   gridRow: { flexDirection: 'row', gap: spacing.md },
@@ -122,7 +127,7 @@ const styles = StyleSheet.create({
   },
   bannerText: { color: colors.primary, fontFamily: family.semibold, fontSize: font.small, letterSpacing: 0.8, flex: 1 },
   prSection: { width: '100%', marginTop: spacing.xxl },
-  prTitle: { color: colors.text, fontFamily: family.display, fontSize: font.h3, letterSpacing: 1, marginBottom: spacing.md, includeFontPadding: false },
+  prTitle: { color: colors.text, fontFamily: family.display, fontSize: font.h3, lineHeight: Math.ceil(font.h3 * 1.15), letterSpacing: 1, marginBottom: spacing.md, includeFontPadding: false },
   message: { color: colors.textDim, fontFamily: family.body, fontSize: font.body, textAlign: 'center', marginTop: spacing.xxl, lineHeight: 22, paddingHorizontal: spacing.md },
   footer: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.md, borderTopWidth: 1, borderTopColor: colors.border },
 });

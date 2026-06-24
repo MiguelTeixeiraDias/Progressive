@@ -1,3 +1,5 @@
+import type { TextStyle } from 'react-native';
+
 import { MuscleGroup } from '../types';
 
 /**
@@ -79,6 +81,23 @@ export const family = {
   semibold: 'SpaceGrotesk_600SemiBold',
   bold: 'SpaceGrotesk_700Bold',
 } as const;
+
+/**
+ * Single source of truth for Bebas Neue display type. Bebas caps sit high in the
+ * em box, so with `includeFontPadding: false` (which we want for tight layout) a
+ * lineHeight at or below the font size clips the tops of letters and numbers.
+ * A ~1.15x line box guarantees headroom for ascenders without dead space — use
+ * this for every large heading / KPI number instead of hand-tuning lineHeight.
+ */
+export function displayText(size: number, letterSpacing = 0): TextStyle {
+  return {
+    fontFamily: family.display,
+    fontSize: size,
+    lineHeight: Math.ceil(size * 1.15),
+    letterSpacing,
+    includeFontPadding: false,
+  };
+}
 
 /** Muscle visualizations stay monochrome (bone); emphasis comes from lime + borders. */
 export const muscleColor = colors.text;

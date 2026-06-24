@@ -130,6 +130,270 @@ export function longestStreak(sessions: WorkoutSession[]): number {
   return best;
 }
 
+/** Distinct local calendar days (YYYY-MM-DD) on which a workout was logged, oldest first. */
+export function uniqueWorkoutDays(sessions: WorkoutSession[]): string[] {
+  return [...new Set(completed(sessions).map((s) => dayKey(s.startedAt)))].sort();
+}
+
+export interface LongestStreakInfo {
+  length: number;
+  start: number | null; // epoch ms, start-of-day
+  end: number | null; // epoch ms, start-of-day
+}
+
+/** Longest run of consecutive unique workout days plus the dates it spanned. */
+export function longestStreakInfo(sessions: WorkoutSession[]): LongestStreakInfo {
+  const days = [
+    ...new Set(completed(sessions).map((s) => startOfDay(s.startedAt).getTime())),
+  ].sort((a, b) => a - b);
+  if (days.length === 0) return { length: 0, start: null, end: null };
+
+  let bestLen = 1;
+  let bestStart = days[0];
+  let bestEnd = days[0];
+  let runLen = 1;
+  let runStart = days[0];
+
+  for (let i = 1; i < days.length; i++) {
+    if (days[i] - days[i - 1] === DAY_MS) {
+      runLen += 1;
+    } else {
+      runLen = 1;
+      runStart = days[i];
+    }
+    if (runLen > bestLen) {
+      bestLen = runLen;
+      bestStart = runStart;
+      bestEnd = days[i];
+    }
+  }
+  return { length: bestLen, start: bestStart, end: bestEnd };
+}
+
+// ---------------------------------------------------------------------------
+// Progressive-overload percentage increase (exercise volume vs previous logging)
+// ---------------------------------------------------------------------------
+
+/** Percentage change between two exercise volumes. null when no prior data to compare. */
+export function percentageIncrease(
+  currentVolume: number,
+  previousVolume: number | null,
+): number | null {
+  if (previousVolume === null || previousVolume <= 0) return null;
+  return ((currentVolume - previousVolume) / previousVolume) * 100;
+}
+
+interface DayVolumes {
+  key: string;
+  time: number; // start-of-day epoch ms
+  vols: Map<string, number>; // exerciseId -> completed volume that day
+}
+
+/** Completed exercise volume aggregated per local day, oldest day first. */
+function dayVolumeTimeline(sessions: WorkoutSession[]): DayVolumes[] {
+  const map = new Map<string, DayVolumes>();
+  for (const s of completed(sessions)) {
+    const key = dayKey(s.startedAt);
+    let entry = map.get(key);
+    if (!entry) {
+      entry = { key, time: startOfDay(s.startedAt).getTime(), vols: new Map() };
+      map.set(key, entry);
+    }
+    for (const we of s.exercises) {
+      const v = exerciseVolume(we, true);
+      if (v > 0) entry.vols.set(we.exerciseId, (entry.vols.get(we.exerciseId) ?? 0) + v);
+    }
+  }
+  return [...map.values()].sort((a, b) => a.time - b.time);
+}
+
+function averageOrNull(values: number[]): number | null {
+  if (values.length === 0) return null;
+  return values.reduce((a, b) => a + b, 0) / values.length;
+}
+
+/**
+ * Average per-exercise percentage increase for one local day, comparing each
+ * exercise's volume that day to the most recent earlier day it was trained.
+ * Exercises with no prior data are excluded; null when nothing is comparable.
+ */
+export function dayAvgPctIncrease(sessions: WorkoutSession[], key: string): number | null {
+  const timeline = dayVolumeTimeline(sessions);
+  const idx = timeline.findIndex((d) => d.key === key);
+  if (idx < 0) return null;
+
+  const pcts: number[] = [];
+  for (const [exId, vol] of timeline[idx].vols) {
+    for (let j = idx - 1; j >= 0; j--) {
+      const prev = timeline[j].vols.get(exId);
+      if (prev && prev > 0) {
+        pcts.push(((vol - prev) / prev) * 100);
+        break;
+      }
+    }
+  }
+  return averageOrNull(pcts);
+}
+
+/**
+ * Average per-exercise percentage increase for a single session, comparing each
+ * exercise to the previous session it appeared in. Powers the Last Session card.
+ */
+export function workoutAvgPctIncrease(
+  sessions: WorkoutSession[],
+  session: WorkoutSession,
+): number | null {
+  const ordered = [...completed(sessions)].sort((a, b) => a.startedAt - b.startedAt);
+  const idx = ordered.findIndex((s) => s.id === session.id);
+  const before = idx >= 0 ? idx : ordered.length;
+
+  const pcts: number[] = [];
+  for (const we of session.exercises) {
+    const cur = exerciseVolume(we, true);
+    if (cur <= 0) continue;
+    for (let j = before - 1; j >= 0; j--) {
+      const prevWe = ordered[j].exercises.find((e) => e.exerciseId === we.exerciseId);
+      if (!prevWe) continue;
+      const prevVol = exerciseVolume(prevWe, true);
+      if (prevVol > 0) {
+        pcts.push(((cur - prevVol) / prevVol) * 100);
+        break;
+      }
+    }
+  }
+  return averageOrNull(pcts);
+}
+
+export interface PctPoint {
+  label: string;
+  key: string;
+  value: number; // pct ?? 0, for bar height
+  pct: number | null; // null = no comparison data that day
+  highlight?: boolean;
+}
+
+/** Daily average percentage increase for the current week (Mon–Sun) for the graph. */
+export function dailyPctIncreaseThisWeek(sessions: WorkoutSession[]): PctPoint[] {
+  const start = startOfWeek(Date.now());
+  const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const todayKey = dayKey(Date.now());
+  return labels.map((label, i) => {
+    const d = addDays(start, i);
+    const key = dayKey(d);
+    const pct = dayAvgPctIncrease(sessions, key);
+    return { label, key, value: pct ?? 0, pct, highlight: key === todayKey };
+  });
+}
+
+/** Average of this week's daily percentage increases. null when nothing comparable. */
+export function weekAvgPctIncrease(sessions: WorkoutSession[]): number | null {
+  const pcts = dailyPctIncreaseThisWeek(sessions)
+    .map((p) => p.pct)
+    .filter((p): p is number => p !== null);
+  return averageOrNull(pcts);
+}
+
+/** True once any exercise has been logged on two different days (comparison possible). */
+export function hasComparisonData(sessions: WorkoutSession[]): boolean {
+  const timeline = dayVolumeTimeline(sessions);
+  for (let i = 1; i < timeline.length; i++) {
+    for (const exId of timeline[i].vols.keys()) {
+      for (let j = i - 1; j >= 0; j--) {
+        if ((timeline[j].vols.get(exId) ?? 0) > 0) return true;
+      }
+    }
+  }
+  return false;
+}
+
+// ---------------------------------------------------------------------------
+// Muscle grid + progression target (Home cards)
+// ---------------------------------------------------------------------------
+
+export interface MuscleGridRow {
+  group: MuscleGroup;
+  /** 7 booleans, Mon..Sun — whether the group was trained that day this week. */
+  days: boolean[];
+}
+
+/** 6x7 grid of which muscle groups were trained on which day of the current week. */
+export function muscleGridThisWeek(sessions: WorkoutSession[]): MuscleGridRow[] {
+  const start = startOfWeek(Date.now()).getTime();
+  const grid = Object.fromEntries(
+    MUSCLE_GROUPS.map((g) => [g, [false, false, false, false, false, false, false]]),
+  ) as Record<MuscleGroup, boolean[]>;
+
+  for (const s of completed(sessions)) {
+    const idx = Math.floor((startOfDay(s.startedAt).getTime() - start) / DAY_MS);
+    if (idx < 0 || idx > 6) continue;
+    for (const we of s.exercises) grid[we.muscleGroup][idx] = true;
+  }
+  return MUSCLE_GROUPS.map((g) => ({ group: g, days: grid[g] }));
+}
+
+export interface NextTargetInfo {
+  exerciseId: string;
+  name: string;
+  topWeight: number;
+  reps: number;
+  increment: number;
+}
+
+/**
+ * The lift most ready to progress: trained at least twice with non-declining
+ * volume on its latest session. Suggests a small load bump on the top set.
+ */
+export function nextTarget(sessions: WorkoutSession[]): NextTargetInfo | null {
+  const byEx: Record<
+    string,
+    { name: string; entries: { time: number; vol: number; topWeight: number; reps: number }[] }
+  > = {};
+
+  for (const s of [...completed(sessions)].sort((a, b) => a.startedAt - b.startedAt)) {
+    for (const we of s.exercises) {
+      const sets = we.sets.filter((x) => x.completed && x.weight > 0);
+      if (sets.length === 0) continue;
+      const topWeight = Math.max(...sets.map((x) => x.weight));
+      const reps = Math.max(
+        ...sets.filter((x) => x.weight === topWeight).map((x) => x.reps),
+      );
+      (byEx[we.exerciseId] ??= { name: we.name, entries: [] }).entries.push({
+        time: s.startedAt,
+        vol: exerciseVolume(we, true),
+        topWeight,
+        reps,
+      });
+    }
+  }
+
+  let best: (NextTargetInfo & { time: number }) | null = null;
+  for (const [exId, info] of Object.entries(byEx)) {
+    const e = info.entries;
+    if (e.length < 2) continue;
+    const last = e[e.length - 1];
+    const prev = e[e.length - 2];
+    if (last.vol < prev.vol) continue; // only lifts that held or progressed are "ready"
+    const increment = last.topWeight >= 60 ? 5 : 2.5;
+    if (
+      !best ||
+      last.time > best.time ||
+      (last.time === best.time && last.topWeight > best.topWeight)
+    ) {
+      best = {
+        exerciseId: exId,
+        name: info.name,
+        topWeight: last.topWeight,
+        reps: last.reps,
+        increment,
+        time: last.time,
+      };
+    }
+  }
+  if (!best) return null;
+  const { time: _t, ...rest } = best;
+  return rest;
+}
+
 // ---------------------------------------------------------------------------
 // Personal records
 // ---------------------------------------------------------------------------
