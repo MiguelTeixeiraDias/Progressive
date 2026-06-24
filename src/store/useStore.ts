@@ -80,6 +80,7 @@ const DEFAULT_SETTINGS: Settings = {
   profile: {},
   goals: {},
   bodyStats: {},
+  featuredExercises: ['ex_squat', 'ex_bench_press', 'ex_deadlift'],
 };
 
 function newSession(name: string): WorkoutSession {
@@ -142,6 +143,8 @@ export const useStore = create<StoreState>()(
             profile: { ...DEFAULT_SETTINGS.profile, ...s.profile },
             goals: { ...DEFAULT_SETTINGS.goals, ...s.goals },
             bodyStats: { ...DEFAULT_SETTINGS.bodyStats, ...s.bodyStats },
+            featuredExercises:
+              s.featuredExercises?.length ? s.featuredExercises : DEFAULT_SETTINGS.featuredExercises,
           },
           hydrated: true,
         });

@@ -781,6 +781,104 @@ export function exerciseMonthlyIncrease(
 }
 
 // ---------------------------------------------------------------------------
+// Progress dashboard
+// ---------------------------------------------------------------------------
+
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+/**
+ * Average week-over-week progressive-overload pace across the last N weeks: for
+ * each consecutive week pair, the mean per-exercise volume change (shared lifts
+ * only), then averaged. e.g. +15 means "≈+15% per week". null when there is no
+ * comparable week-over-week data.
+ */
+export function weeklyOverloadPace(
+  sessions: WorkoutSession[],
+  weeks = 4,
+): number | null {
+  const start = startOfWeek(Date.now());
+  const done = completed(sessions);
+
+  const volumeForWeek = (weekIndex: number) => {
+    const ws = addDays(start, -7 * weekIndex);
+    const we = addDays(ws, 7);
+    const m = new Map<string, number>();
+    for (const sn of done) {
+      if (sn.startedAt >= ws.getTime() && sn.startedAt < we.getTime()) {
+        for (const ex of sn.exercises) {
+          const v = exerciseVolume(ex, true);
+          if (v > 0) m.set(ex.exerciseId, (m.get(ex.exerciseId) ?? 0) + v);
+        }
+      }
+    }
+    return m;
+  };
+
+  // Need one extra older week so the oldest tracked week still has a baseline.
+  const maps: Map<string, number>[] = [];
+  for (let i = 0; i <= weeks; i++) maps.push(volumeForWeek(i));
+
+  const weekPcts: number[] = [];
+  for (let i = 0; i < weeks; i++) {
+    const newer = maps[i];
+    const older = maps[i + 1];
+    const shared = [...newer.keys()].filter((k) => (older.get(k) ?? 0) > 0);
+    if (shared.length === 0) continue;
+    const avg =
+      shared.reduce((sum, k) => sum + ((newer.get(k)! - older.get(k)!) / older.get(k)!) * 100, 0) /
+      shared.length;
+    weekPcts.push(avg);
+  }
+  return averageOrNull(weekPcts);
+}
+
+/** The most recently achieved personal record (by date), or null if none. */
+export function latestPersonalRecord(
+  sessions: WorkoutSession[],
+): PersonalRecord | null {
+  const prs = Object.values(computePRs(sessions)).filter((p) => p.maxWeight > 0);
+  if (prs.length === 0) return null;
+  return prs.reduce((a, b) =>
+    new Date(b.achievedAt).getTime() > new Date(a.achievedAt).getTime() ? b : a,
+  );
+}
+
+export interface MonthConsistency {
+  label: string; // e.g. "June 2026"
+  weeks: SeriesPoint[]; // workouts per week, for weeks whose Monday falls in the month
+}
+
+/** Workouts-per-week for a single calendar month (monthOffset: 0 = current). */
+export function monthlyConsistency(
+  sessions: WorkoutSession[],
+  monthOffset = 0,
+): MonthConsistency {
+  const base = new Date();
+  base.setDate(1);
+  base.setMonth(base.getMonth() + monthOffset);
+  const year = base.getFullYear();
+  const month = base.getMonth();
+  const todayWeek = startOfWeek(Date.now()).getTime();
+  const firstMonday = startOfWeek(new Date(year, month, 1));
+  const done = completed(sessions);
+
+  const weeks: SeriesPoint[] = [];
+  for (let i = 0; i < 6; i++) {
+    const ws = addDays(firstMonday, 7 * i);
+    if (ws.getFullYear() !== year || ws.getMonth() !== month) continue;
+    const we = addDays(ws, 7);
+    const value = done.filter(
+      (s) => s.startedAt >= ws.getTime() && s.startedAt < we.getTime(),
+    ).length;
+    weeks.push({ label: `W${weeks.length + 1}`, value, highlight: ws.getTime() === todayWeek });
+  }
+  return { label: `${MONTH_NAMES[month]} ${year}`, weeks };
+}
+
+// ---------------------------------------------------------------------------
 // Lookups used by the logging flow
 // ---------------------------------------------------------------------------
 

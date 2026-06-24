@@ -138,6 +138,8 @@ export interface Settings {
   profile: UserProfile;
   goals: UserGoals;
   bodyStats: BodyStats;
+  /** Exercise ids pinned to the Progress "key lifts" PR tiles (defaults: squat/bench/deadlift). */
+  featuredExercises: string[];
 }
 
 /** Returned by finishWorkout() to power the celebration screen. */

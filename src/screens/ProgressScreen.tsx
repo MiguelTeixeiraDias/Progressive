@@ -1,57 +1,104 @@
-import React, { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import React, { useMemo, useRef, useState } from 'react';
+import {
+  Dimensions,
+  FlatList,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { EmptyState, KPICard, PersonalBestBadge, ProgressBar, SectionHeader, StatChart } from '../components';
+import {
+  EmptyState,
+  ExerciseCard,
+  KPICard,
+  MuscleFilter,
+  MuscleFilterTabs,
+  PersonalBestBadge,
+  ProgressBar,
+  SearchInput,
+  SectionHeader,
+  StatChart,
+} from '../components';
 import { TabScreenProps } from '../navigation/types';
 import { useStore } from '../store/useStore';
+import { Exercise } from '../types';
 import { colors, family, font, radius, spacing } from '../theme';
 import { withAlpha } from '../utils/color';
-import { formatVolume, formatWeight } from '../utils/format';
+import { formatWeight, signedPct } from '../utils/format';
 import {
+  computePRs,
   currentStreak,
-  exerciseProgress,
-  exercisesByFrequency,
+  latestPersonalRecord,
+  monthlyConsistency,
   muscleFrequency,
   overloadInsights,
   overloadLabel,
   overloadScore,
   personalRecordList,
-  totalVolume,
-  weeklyVolumeSeries,
-  weeklyWorkoutSeries,
+  weeklyOverloadPace,
 } from '../utils/stats';
+
+const MONTHS_BACK = [-5, -4, -3, -2, -1, 0];
 
 export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'>) {
   const workouts = useStore((s) => s.workouts);
   const settings = useStore((s) => s.settings);
+  const exercises = useStore((s) => s.exercises);
+  const updateSettings = useStore((s) => s.updateSettings);
 
   const data = useMemo(() => {
     const score = overloadScore(workouts);
-    const freq = exercisesByFrequency(workouts);
     return {
       score,
       scoreLabel: overloadLabel(score),
-      totalVol: totalVolume(workouts),
+      pace: weeklyOverloadPace(workouts, 4),
       totalWorkouts: workouts.length,
       streak: currentStreak(workouts),
+      latestPr: latestPersonalRecord(workouts),
       prs: personalRecordList(workouts),
-      weeklyVol: weeklyVolumeSeries(workouts, 8),
-      weeklyCount: weeklyWorkoutSeries(workouts, 8),
+      prMap: computePRs(workouts),
       muscleFreq: muscleFrequency(workouts, 4),
       insights: overloadInsights(workouts, settings.weeklyGoal),
-      topExercises: freq.slice(0, 6),
     };
   }, [workouts, settings.weeklyGoal]);
 
-  const [selectedExId, setSelectedExId] = useState<string | undefined>(undefined);
-  const selectedId = selectedExId ?? data.topExercises[0]?.exerciseId;
-  const exProgress = useMemo(() => (selectedId ? exerciseProgress(workouts, selectedId) : []), [workouts, selectedId]);
-  const exChart = exProgress.map((p, i) => ({ label: p.label, value: p.topWeight, highlight: i === exProgress.length - 1 }));
-  const est1RM = exProgress.length ? Math.max(...exProgress.map((p) => p.e1rm)) : 0;
-
   const scoreColor = data.score >= 60 ? colors.primary : colors.text;
+  const paceColor = data.pace === null ? colors.text : data.pace >= 0 ? colors.primary : colors.text;
   const maxFreq = Math.max(1, ...data.muscleFreq.map((m) => m.value));
+
+  // Editable "key lifts" PR tiles.
+  const featured = settings.featuredExercises.slice(0, 3);
+  const [editingSlot, setEditingSlot] = useState<number | null>(null);
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<MuscleFilter>('All');
+
+  const pickList = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return [...exercises]
+      .filter((e) => (filter === 'All' ? true : e.muscleGroup === filter))
+      .filter((e) => (q ? e.name.toLowerCase().includes(q) : true))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [exercises, query, filter]);
+
+  const chooseExercise = (ex: Exercise) => {
+    if (editingSlot === null) return;
+    const next = [...settings.featuredExercises];
+    next[editingSlot] = ex.id;
+    updateSettings({ featuredExercises: next });
+    setEditingSlot(null);
+    setQuery('');
+    setFilter('All');
+  };
+
+  // Month pager — auto-scroll to the current month (last page) on first layout.
+  const pageWidth = Dimensions.get('window').width - spacing.lg * 2;
+  const monthRef = useRef<ScrollView>(null);
+  const didInit = useRef(false);
 
   if (workouts.length === 0) {
     return (
@@ -72,18 +119,69 @@ export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'
           <Text style={styles.subtitle}>THE PERFORMANCE REPORT</Text>
         </View>
 
+        {/* Headline tiles */}
         <View style={styles.tiles}>
-          <KPICard style={styles.tile} label="Total volume" value={data.totalVol} unit="kg" accent={colors.primary} countUp format={formatVolume} />
+          {data.pace !== null ? (
+            <KPICard style={styles.tile} label="Current pace" value={data.pace} accent={paceColor} countUp format={signedPct} caption="PER WEEK · 4 WK" />
+          ) : (
+            <KPICard style={styles.tile} label="Current pace" value="—" caption="NOT ENOUGH DATA" />
+          )}
           <KPICard style={styles.tile} label="Workouts" value={data.totalWorkouts} countUp />
         </View>
         <View style={styles.tiles}>
           <KPICard style={styles.tile} label="Current streak" value={data.streak} countUp caption="DAYS" />
-          <KPICard style={styles.tile} label="Records" value={data.prs.length} countUp />
+          {data.latestPr ? (
+            <KPICard
+              style={styles.tile}
+              label="Latest record"
+              value={data.latestPr.maxWeight}
+              unit="kg"
+              accent={colors.primary}
+              countUp
+              format={formatWeight}
+              caption={data.latestPr.exerciseName.toUpperCase()}
+            />
+          ) : (
+            <KPICard style={styles.tile} label="Latest record" value="—" caption="NO RECORDS YET" />
+          )}
+        </View>
+
+        {/* Key lifts — editable PR tiles */}
+        <View style={styles.section}>
+          <SectionHeader title="Key Lifts" subtitle="Tap a lift to swap · personal records" />
+          <View style={styles.keyLifts}>
+            {featured.map((exId, i) => {
+              const ex = exercises.find((e) => e.id === exId);
+              const pr = data.prMap[exId];
+              const has = !!pr && pr.maxWeight > 0;
+              return (
+                <Pressable
+                  key={`${exId}-${i}`}
+                  onPress={() => setEditingSlot(i)}
+                  style={({ pressed }) => [styles.keyTile, pressed && styles.keyTilePressed]}
+                >
+                  <View style={styles.keyTop}>
+                    <Text style={styles.keyName} numberOfLines={1}>
+                      {(ex?.name ?? 'Pick lift').toUpperCase()}
+                    </Text>
+                    <Ionicons name="pencil" size={11} color={colors.textFaint} />
+                  </View>
+                  <View style={styles.keyValueRow}>
+                    <Text style={styles.keyValue}>{has ? formatWeight(pr.maxWeight) : '—'}</Text>
+                    {has ? <Text style={styles.keyUnit}>kg</Text> : null}
+                  </View>
+                  <Text style={styles.keySub} numberOfLines={1}>
+                    {has ? `${pr.repsAtMaxWeight} REPS` : 'NO PR YET'}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
 
         {/* Progressive overload */}
         <View style={styles.section}>
-          <SectionHeader title="Progressive Overload" subtitle="Are you adding work over time?" />
+          <SectionHeader title="Progressive Overload" />
           <View style={styles.card}>
             <View style={styles.scoreRow}>
               <View style={styles.scoreLeft}>
@@ -106,68 +204,37 @@ export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'
           </View>
         </View>
 
-        {/* Volume over time */}
+        {/* Weekly consistency — one month per page, swipe to snap between months */}
         <View style={styles.section}>
-          <SectionHeader title="Volume Over Time" subtitle="Total kg per week · last 8 weeks" />
-          <View style={styles.card}>
-            <StatChart data={data.weeklyVol} color={colors.primary} height={150} showValues formatValue={formatVolume} />
-          </View>
-        </View>
-
-        {/* Weekly consistency */}
-        <View style={styles.section}>
-          <SectionHeader title="Weekly Consistency" subtitle={`Workouts per week · goal ${settings.weeklyGoal}`} />
-          <View style={styles.card}>
-            <StatChart data={data.weeklyCount} color={colors.primary} height={120} showValues />
-          </View>
-        </View>
-
-        {/* Exercise progress */}
-        <View style={styles.section}>
-          <SectionHeader title="Exercise Progress" subtitle="Top set weight per session" />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.exChips}>
-            {data.topExercises.map((ex) => {
-              const sel = ex.exerciseId === selectedId;
+          <SectionHeader title="Weekly Consistency" subtitle="Workouts per week · swipe months" />
+          <ScrollView
+            ref={monthRef}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onContentSizeChange={() => {
+              if (!didInit.current) {
+                didInit.current = true;
+                monthRef.current?.scrollToEnd({ animated: false });
+              }
+            }}
+          >
+            {MONTHS_BACK.map((off) => {
+              const mc = monthlyConsistency(workouts, off);
               return (
-                <Pressable
-                  key={ex.exerciseId}
-                  onPress={() => setSelectedExId(ex.exerciseId)}
-                  style={[styles.exChip, { backgroundColor: sel ? colors.primaryDim : 'transparent', borderColor: sel ? colors.primary : colors.borderStrong }]}
-                >
-                  <Text style={[styles.exChipText, { color: sel ? colors.primary : colors.textDim }]}>{ex.name.toUpperCase()}</Text>
-                </Pressable>
+                <View key={off} style={{ width: pageWidth }}>
+                  <View style={styles.card}>
+                    <Text style={styles.monthLabel}>{mc.label.toUpperCase()}</Text>
+                    {mc.weeks.length > 0 ? (
+                      <StatChart data={mc.weeks} color={colors.primary} height={120} showValues />
+                    ) : (
+                      <Text style={styles.muted}>No weeks recorded.</Text>
+                    )}
+                  </View>
+                </View>
               );
             })}
           </ScrollView>
-          <View style={styles.card}>
-            {exChart.length > 0 ? (
-              <>
-                <View style={styles.estRow}>
-                  <Text style={styles.cardLabel}>ESTIMATED 1RM</Text>
-                  <Text style={styles.estValue}>{formatWeight(est1RM)} KG</Text>
-                </View>
-                <StatChart data={exChart} color={colors.primary} height={150} showValues formatValue={formatWeight} />
-              </>
-            ) : (
-              <Text style={styles.muted}>No sessions logged for this exercise yet.</Text>
-            )}
-          </View>
-        </View>
-
-        {/* Personal records */}
-        <View style={styles.section}>
-          <SectionHeader title="Personal Records" subtitle="Your heaviest lifts" />
-          <View style={{ gap: spacing.sm }}>
-            {data.prs.slice(0, 8).map((pr) => (
-              <Pressable key={pr.exerciseId} onPress={() => navigation.navigate('ExerciseDetail', { exerciseId: pr.exerciseId })}>
-                <PersonalBestBadge
-                  title={pr.exerciseName}
-                  value={`${formatWeight(pr.maxWeight)} kg`}
-                  caption={`${pr.repsAtMaxWeight} reps · e1RM ${formatWeight(pr.estimatedOneRepMax)} kg`}
-                />
-              </Pressable>
-            ))}
-          </View>
         </View>
 
         {/* Muscle frequency */}
@@ -186,7 +253,67 @@ export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'
             })}
           </View>
         </View>
+
+        {/* Personal records — scroll within the card (≈6 visible) */}
+        <View style={styles.section}>
+          <SectionHeader title="Personal Records" subtitle="Your heaviest lifts" />
+          <ScrollView
+            style={styles.prScroll}
+            nestedScrollEnabled
+            showsVerticalScrollIndicator
+            contentContainerStyle={styles.prScrollContent}
+          >
+            {data.prs.map((pr) => (
+              <Pressable key={pr.exerciseId} onPress={() => navigation.navigate('ExerciseDetail', { exerciseId: pr.exerciseId })}>
+                <PersonalBestBadge
+                  title={pr.exerciseName}
+                  value={`${formatWeight(pr.maxWeight)} kg`}
+                  caption={`${pr.repsAtMaxWeight} reps · e1RM ${formatWeight(pr.estimatedOneRepMax)} kg`}
+                />
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
       </ScrollView>
+
+      {/* Edit modal for the key-lift PR tiles */}
+      <Modal visible={editingSlot !== null} animationType="slide" transparent onRequestClose={() => setEditingSlot(null)}>
+        <View style={styles.modalBackdrop}>
+          <SafeAreaView style={styles.modalSheet} edges={['bottom']}>
+            <View style={styles.modalHandleWrap}>
+              <View style={styles.modalHandle} />
+            </View>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>CHOOSE LIFT</Text>
+              <Pressable onPress={() => setEditingSlot(null)} hitSlop={8} style={styles.modalClose}>
+                <Ionicons name="close" size={20} color={colors.textDim} />
+              </Pressable>
+            </View>
+            <SearchInput value={query} onChangeText={setQuery} style={styles.modalSearch} />
+            <MuscleFilterTabs value={filter} onChange={setFilter} />
+            <FlatList
+              data={pickList}
+              keyExtractor={(item) => item.id}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.modalList}
+              ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
+              renderItem={({ item }) => {
+                const sel = editingSlot !== null && settings.featuredExercises[editingSlot] === item.id;
+                return (
+                  <ExerciseCard
+                    exercise={item}
+                    trailingIcon={sel ? 'checkmark-circle' : 'add-circle-outline'}
+                    trailingAccent={sel ? colors.primary : colors.textFaint}
+                    onPress={() => chooseExercise(item)}
+                  />
+                );
+              }}
+            />
+          </SafeAreaView>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -201,7 +328,28 @@ const styles = StyleSheet.create({
   tile: { flex: 1 },
   section: {},
   card: { backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.lg },
-  cardLabel: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 1.4 },
+
+  // Key lifts
+  keyLifts: { flexDirection: 'row', gap: spacing.md },
+  keyTile: {
+    flex: 1,
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    gap: 4,
+  },
+  keyTilePressed: { borderColor: colors.borderStrong, transform: [{ scale: 1.01 }] },
+  keyTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 4 },
+  keyName: { flex: 1, color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 0.6 },
+  keyValueRow: { flexDirection: 'row', alignItems: 'flex-end' },
+  keyValue: { color: colors.text, fontFamily: family.display, fontSize: 34, lineHeight: 39, includeFontPadding: false },
+  keyUnit: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, marginLeft: 3, marginBottom: 6 },
+  keySub: { color: colors.textFaint, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 0.6 },
+
+  // Progressive overload
   scoreRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.md },
   scoreLeft: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
   scoreValue: { fontFamily: family.display, fontSize: 56, lineHeight: 64, letterSpacing: 0.5, includeFontPadding: false },
@@ -212,14 +360,36 @@ const styles = StyleSheet.create({
   insightRow: { flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' },
   insightTick: { width: 3, height: 16, backgroundColor: colors.primary, marginTop: 2 },
   insightText: { color: colors.textDim, fontFamily: family.body, fontSize: font.body, flex: 1, lineHeight: 21 },
-  exChips: { gap: spacing.sm, paddingBottom: spacing.md },
-  exChip: { paddingHorizontal: spacing.md, paddingVertical: 8, borderRadius: radius.sm, borderWidth: 1 },
-  exChipText: { fontFamily: family.medium, fontSize: font.small, letterSpacing: 0.6 },
-  estRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.lg },
-  estValue: { color: colors.primary, fontFamily: family.display, fontSize: font.h2, lineHeight: Math.ceil(font.h2 * 1.15), letterSpacing: 0.5, includeFontPadding: false },
+
+  // Month pager
+  monthLabel: { color: colors.text, fontFamily: family.semibold, fontSize: font.label, letterSpacing: 1.4, marginBottom: spacing.md },
   muted: { color: colors.textDim, fontFamily: family.body, fontSize: font.body, textAlign: 'center', paddingVertical: spacing.lg },
+
+  // Muscle frequency
   muscleRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 7 },
   muscleName: { color: colors.text, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 0.8, width: 80 },
   muscleBar: { flex: 1, marginHorizontal: spacing.md },
   muscleValue: { color: colors.textDim, fontFamily: family.display, fontSize: font.lg, width: 36, textAlign: 'right', includeFontPadding: false },
+
+  // Personal records
+  prScroll: { maxHeight: 392 },
+  prScrollContent: { gap: spacing.sm, paddingBottom: 2 },
+
+  // Edit modal
+  modalBackdrop: { flex: 1, backgroundColor: colors.overlay, justifyContent: 'flex-end' },
+  modalSheet: {
+    height: '82%',
+    backgroundColor: colors.bgElevated,
+    borderTopLeftRadius: radius.md,
+    borderTopRightRadius: radius.md,
+    borderTopWidth: 1,
+    borderColor: colors.border,
+  },
+  modalHandleWrap: { alignItems: 'center', paddingVertical: spacing.md },
+  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.borderStrong },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
+  modalTitle: { color: colors.text, fontFamily: family.display, fontSize: font.h2, lineHeight: Math.ceil(font.h2 * 1.15), letterSpacing: 1, includeFontPadding: false },
+  modalClose: { width: 36, height: 36, borderRadius: radius.sm, backgroundColor: colors.card3, alignItems: 'center', justifyContent: 'center' },
+  modalSearch: { marginHorizontal: spacing.lg },
+  modalList: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
 });
