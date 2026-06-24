@@ -4,8 +4,6 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { SetEntry, WorkoutExercise } from '../types';
 import { colors, family, font, radius, spacing } from '../theme';
-import { formatVolume } from '../utils/format';
-import { exerciseVolume } from '../utils/stats';
 import Card from './Card';
 import MuscleGroupBadge from './MuscleGroupBadge';
 import PrimaryButton from './PrimaryButton';
@@ -16,9 +14,9 @@ interface WorkoutExerciseCardProps {
   previousSets?: { reps: number; weight: number }[] | null;
   onAddSet: () => void;
   onRemove: () => void;
+  onComplete: () => void;
   onNotesChange: (notes: string) => void;
   onUpdateSet: (setId: string, patch: Partial<Pick<SetEntry, 'reps' | 'weight'>>) => void;
-  onToggleSet: (setId: string) => void;
   onRemoveSet: (setId: string) => void;
 }
 
@@ -27,24 +25,24 @@ export default function WorkoutExerciseCard({
   previousSets,
   onAddSet,
   onRemove,
+  onComplete,
   onNotesChange,
   onUpdateSet,
-  onToggleSet,
   onRemoveSet,
 }: WorkoutExerciseCardProps) {
   const completedCount = exercise.sets.filter((s) => s.completed).length;
-  const volume = exerciseVolume(exercise, true);
+  const isComplete = exercise.sets.length > 0 && completedCount === exercise.sets.length;
 
   return (
-    <Card style={styles.card}>
+    <Card style={[styles.card, isComplete && styles.cardComplete]}>
+      {isComplete ? <View style={styles.completeBar} /> : null}
       <View style={styles.header}>
         <View style={styles.headerText}>
           <Text style={styles.name}>{exercise.name}</Text>
           <View style={styles.metaRow}>
             <MuscleGroupBadge group={exercise.muscleGroup} size="sm" />
-            <Text style={styles.meta}>
-              {completedCount}/{exercise.sets.length} SETS · {formatVolume(volume)} KG
-            </Text>
+            <Text style={styles.meta}>{completedCount}/{exercise.sets.length} SETS</Text>
+            {isComplete ? <Text style={styles.completedTag}>· COMPLETED</Text> : null}
           </View>
         </View>
         <Pressable onPress={onRemove} hitSlop={8} style={styles.iconBtn}>
@@ -72,24 +70,35 @@ export default function WorkoutExerciseCard({
             set={set}
             previousHint={previousSets && previousSets[i] ? `${previousSets[i].weight}kg × ${previousSets[i].reps}` : null}
             onChange={(patch) => onUpdateSet(set.id, patch)}
-            onToggleComplete={() => onToggleSet(set.id)}
             onRemove={exercise.sets.length > 1 ? () => onRemoveSet(set.id) : undefined}
           />
         ))}
       </View>
 
       <PrimaryButton title="Add Set" icon="add" variant="ghost" size="md" fullWidth onPress={onAddSet} />
+
+      <PrimaryButton
+        title={isComplete ? 'Completed — Tap to Reopen' : 'Complete Exercise'}
+        icon={isComplete ? 'checkmark-done' : 'checkmark'}
+        variant={isComplete ? 'secondary' : 'primary'}
+        size="md"
+        fullWidth
+        onPress={onComplete}
+      />
     </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { gap: spacing.md },
+  card: { gap: spacing.md, overflow: 'hidden' },
+  cardComplete: { borderColor: colors.primary, backgroundColor: colors.primaryDim },
+  completeBar: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, backgroundColor: colors.primary },
   header: { flexDirection: 'row', alignItems: 'flex-start' },
   headerText: { flex: 1 },
   name: { color: colors.text, fontFamily: family.semibold, fontSize: font.h3 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: 6 },
   meta: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 0.6 },
+  completedTag: { color: colors.primary, fontFamily: family.semibold, fontSize: font.tiny, letterSpacing: 0.8 },
   iconBtn: {
     width: 32,
     height: 32,

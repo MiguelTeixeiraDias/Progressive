@@ -4,6 +4,7 @@ import React from 'react';
 import AddExerciseScreen from '../screens/AddExerciseScreen';
 import ExerciseDetailScreen from '../screens/ExerciseDetailScreen';
 import ExercisePickerScreen from '../screens/ExercisePickerScreen';
+import TemplateEditorScreen from '../screens/TemplateEditorScreen';
 import WorkoutCompleteScreen from '../screens/WorkoutCompleteScreen';
 import WorkoutDetailScreen from '../screens/WorkoutDetailScreen';
 import { colors } from '../theme';
@@ -27,6 +28,7 @@ export default function RootNavigator() {
         <Stack.Screen name="AddExercise" component={AddExerciseScreen} />
         <Stack.Screen name="ExerciseDetail" component={ExerciseDetailScreen} />
         <Stack.Screen name="WorkoutDetail" component={WorkoutDetailScreen} />
+        <Stack.Screen name="TemplateEditor" component={TemplateEditorScreen} />
       </Stack.Group>
 
       <Stack.Screen

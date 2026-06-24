@@ -42,7 +42,6 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
   const workouts = useStore((s) => s.workouts);
   const settings = useStore((s) => s.settings);
   const activeWorkout = useStore((s) => s.activeWorkout);
-  const startWorkout = useStore((s) => s.startWorkout);
   const repeatLastWorkout = useStore((s) => s.repeatLastWorkout);
   const startWorkoutFrom = useStore((s) => s.startWorkoutFrom);
 
@@ -75,10 +74,9 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
         ? 'Momentum is building. Stack another clean session.'
         : "A blank page. Log today's first set.";
 
-  const goToWorkout = () => {
-    if (!activeWorkout) startWorkout();
-    navigation.navigate('Workout');
-  };
+  // Route to the Workout tab; the pre-start screen offers blank / repeat /
+  // template, and resumes automatically if a session is already active.
+  const goToWorkout = () => navigation.navigate('Workout');
   const onRepeat = () => {
     if (repeatLastWorkout()) navigation.navigate('Workout');
   };
@@ -233,9 +231,9 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
           </Card>
         </View>
 
-        {/* Last session */}
+        {/* Last session — History is intentionally unlinked from navigation for now. */}
         <View style={styles.section}>
-          <SectionHeader title="Last Session" actionLabel="History" onAction={() => navigation.navigate('History')} />
+          <SectionHeader title="Last Session" />
           {m.last ? (
             <WorkoutSummaryCard
               session={m.last}

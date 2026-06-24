@@ -10,9 +10,11 @@ import {
   NewPR,
   SetEntry,
   Settings,
+  TemplateExercise,
   WorkoutExercise,
   WorkoutSession,
   WorkoutSummary,
+  WorkoutTemplate,
 } from '../types';
 import { uid } from '../utils/id';
 import { computePRs, epley1RM, lastPerformance, lastWorkout } from '../utils/stats';
@@ -21,6 +23,7 @@ interface StoreState {
   // persisted data
   exercises: Exercise[];
   workouts: WorkoutSession[]; // completed history, newest first
+  templates: WorkoutTemplate[]; // reusable plans, newest first
   activeWorkout: WorkoutSession | null;
   settings: Settings;
   hasSeeded: boolean;
@@ -35,9 +38,21 @@ interface StoreState {
   // library
   addExercise: (name: string, muscleGroup: MuscleGroup) => Exercise;
 
+  // templates
+  addTemplate: (name: string, exercises: TemplateExercise[]) => WorkoutTemplate;
+  updateTemplate: (
+    id: string,
+    patch: Partial<Pick<WorkoutTemplate, 'name' | 'exercises'>>,
+  ) => void;
+  deleteTemplate: (id: string) => void;
+
+  // settings
+  updateSettings: (patch: Partial<Settings>) => void;
+
   // session lifecycle
   startWorkout: (name?: string) => void;
   startWorkoutFrom: (sessionId: string) => boolean;
+  startWorkoutFromTemplate: (templateId: string) => boolean;
   repeatLastWorkout: () => boolean;
   discardWorkout: () => void;
   renameWorkout: (name: string) => void;
@@ -54,6 +69,7 @@ interface StoreState {
     patch: Partial<Pick<SetEntry, 'reps' | 'weight'>>,
   ) => void;
   toggleSetComplete: (workoutExerciseId: string, setId: string) => void;
+  completeExercise: (workoutExerciseId: string) => void;
   removeSet: (workoutExerciseId: string, setId: string) => void;
 }
 
@@ -61,6 +77,9 @@ const DEFAULT_SETTINGS: Settings = {
   userName: 'Athlete',
   weeklyGoal: 4,
   unit: 'kg',
+  profile: {},
+  goals: {},
+  bodyStats: {},
 };
 
 function newSession(name: string): WorkoutSession {
@@ -97,6 +116,7 @@ export const useStore = create<StoreState>()(
     (set, get) => ({
       exercises: DEFAULT_EXERCISES,
       workouts: [],
+      templates: [],
       activeWorkout: null,
       settings: DEFAULT_SETTINGS,
       hasSeeded: false,
@@ -111,17 +131,64 @@ export const useStore = create<StoreState>()(
             hasSeeded: true,
           });
         }
-        set({ hydrated: true });
+        // Backfill settings shape for stores persisted before profile/goals/body
+        // stats existed, so the Settings screen can read nested fields safely.
+        const s = state.settings ?? DEFAULT_SETTINGS;
+        set({
+          templates: state.templates ?? [],
+          settings: {
+            ...DEFAULT_SETTINGS,
+            ...s,
+            profile: { ...DEFAULT_SETTINGS.profile, ...s.profile },
+            goals: { ...DEFAULT_SETTINGS.goals, ...s.goals },
+            bodyStats: { ...DEFAULT_SETTINGS.bodyStats, ...s.bodyStats },
+          },
+          hydrated: true,
+        });
       },
 
       factoryReset: () =>
         set({
           exercises: DEFAULT_EXERCISES,
           workouts: generateSampleWorkouts(),
+          templates: [],
           activeWorkout: null,
           settings: DEFAULT_SETTINGS,
           hasSeeded: true,
         }),
+
+      addTemplate: (name, exercises) => {
+        const now = new Date().toISOString();
+        const template: WorkoutTemplate = {
+          id: uid('tpl'),
+          name: name.trim() || 'Template',
+          exercises,
+          createdAt: now,
+          updatedAt: now,
+        };
+        set((s) => ({ templates: [template, ...s.templates] }));
+        return template;
+      },
+
+      updateTemplate: (id, patch) =>
+        set((s) => ({
+          templates: s.templates.map((t) =>
+            t.id === id
+              ? {
+                  ...t,
+                  ...patch,
+                  name: patch.name !== undefined ? patch.name.trim() || t.name : t.name,
+                  updatedAt: new Date().toISOString(),
+                }
+              : t,
+          ),
+        })),
+
+      deleteTemplate: (id) =>
+        set((s) => ({ templates: s.templates.filter((t) => t.id !== id) })),
+
+      updateSettings: (patch) =>
+        set((s) => ({ settings: { ...s.settings, ...patch } })),
 
       addExercise: (name, muscleGroup) => {
         const exercise: Exercise = {
@@ -156,6 +223,35 @@ export const useStore = create<StoreState>()(
             completed: false,
           })),
         }));
+        set({ activeWorkout: session });
+        return true;
+      },
+
+      startWorkoutFromTemplate: (templateId) => {
+        if (get().activeWorkout) return false; // already training
+        const tpl = get().templates.find((t) => t.id === templateId);
+        if (!tpl) return false;
+        const session = newSession(tpl.name); // autofill the workout name from the template
+        session.exercises = tpl.exercises.map((te) => {
+          const prev = lastPerformance(get().workouts, te.exerciseId);
+          const sets: SetEntry[] =
+            prev && prev.sets.length > 0
+              ? prev.sets.map((s) => ({
+                  id: uid('set'),
+                  reps: s.reps,
+                  weight: s.weight,
+                  completed: false,
+                }))
+              : [{ id: uid('set'), reps: 10, weight: 20, completed: false }];
+          return {
+            id: uid('we'),
+            exerciseId: te.exerciseId,
+            name: te.exerciseName,
+            muscleGroup: te.muscleGroup,
+            notes: te.notes ?? '',
+            sets,
+          };
+        });
         set({ activeWorkout: session });
         return true;
       },
@@ -345,6 +441,22 @@ export const useStore = create<StoreState>()(
         });
       },
 
+      // Exercise-level completion (replaces per-set ticks in the UI). Marks every
+      // set of the exercise complete, or reopens it for editing if already done.
+      completeExercise: (workoutExerciseId) => {
+        const active = get().activeWorkout;
+        if (!active) return;
+        const we = active.exercises.find((e) => e.id === workoutExerciseId);
+        if (!we) return;
+        const allDone = we.sets.length > 0 && we.sets.every((s) => s.completed);
+        set({
+          activeWorkout: mapExercise(active, workoutExerciseId, (x) => ({
+            ...x,
+            sets: x.sets.map((s) => ({ ...s, completed: !allDone })),
+          })),
+        });
+      },
+
       removeSet: (workoutExerciseId, setId) => {
         const active = get().activeWorkout;
         if (!active) return;
@@ -362,6 +474,7 @@ export const useStore = create<StoreState>()(
       partialize: (s) => ({
         exercises: s.exercises,
         workouts: s.workouts,
+        templates: s.templates,
         activeWorkout: s.activeWorkout,
         settings: s.settings,
         hasSeeded: s.hasSeeded,

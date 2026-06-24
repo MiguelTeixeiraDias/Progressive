@@ -4,9 +4,12 @@ import React from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import ExercisesScreen from '../screens/ExercisesScreen';
-import HistoryScreen from '../screens/HistoryScreen';
+// History screen is intentionally preserved but currently unlinked from
+// navigation. The file (HistoryScreen.tsx) remains in the project and may be
+// restored in a future version; it has been replaced by Settings in the tabs.
 import HomeScreen from '../screens/HomeScreen';
 import ProgressScreen from '../screens/ProgressScreen';
+import SettingsScreen from '../screens/SettingsScreen';
 import WorkoutScreen from '../screens/WorkoutScreen';
 import { colors, family, font } from '../theme';
 import { TabParamList } from './types';
@@ -20,7 +23,7 @@ const ICONS: Record<keyof TabParamList, { on: IconName; off: IconName }> = {
   Workout: { on: 'barbell', off: 'barbell-outline' },
   Exercises: { on: 'list', off: 'list-outline' },
   Progress: { on: 'stats-chart', off: 'stats-chart-outline' },
-  History: { on: 'time', off: 'time-outline' },
+  Settings: { on: 'settings', off: 'settings-outline' },
 };
 
 export default function TabNavigator() {
@@ -59,7 +62,8 @@ export default function TabNavigator() {
       <Tab.Screen name="Workout" component={WorkoutScreen} />
       <Tab.Screen name="Exercises" component={ExercisesScreen} />
       <Tab.Screen name="Progress" component={ProgressScreen} />
-      <Tab.Screen name="History" component={HistoryScreen} />
+      {/* History tab removed (see import note); Settings takes its place. */}
+      <Tab.Screen name="Settings" component={SettingsScreen} />
     </Tab.Navigator>
   );
 }

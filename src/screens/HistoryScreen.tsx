@@ -11,7 +11,11 @@ import { dayKey, relativeDay } from '../utils/date';
 import { formatVolume } from '../utils/format';
 import { totalVolume, workoutAvgPctIncrease, workoutsThisWeek } from '../utils/stats';
 
-export default function HistoryScreen({ navigation }: TabScreenProps<'History'>) {
+// History screen is intentionally preserved but currently unlinked from
+// navigation (removed from the bottom tabs). It may be restored in a future
+// version. Typed against the Home tab purely so it keeps compiling while
+// unmounted — it still reaches WorkoutDetail / Workout through the root stack.
+export default function HistoryScreen({ navigation }: TabScreenProps<'Home'>) {
   const workouts = useStore((s) => s.workouts);
   const startWorkoutFrom = useStore((s) => s.startWorkoutFrom);
 

@@ -74,10 +74,70 @@ export interface UserStats {
   volumeThisWeek: number;
 }
 
+/** A reusable training plan the user can start a workout from. */
+export interface TemplateExercise {
+  exerciseId: string;
+  exerciseName: string;
+  muscleGroup: MuscleGroup;
+  notes?: string;
+}
+
+export interface WorkoutTemplate {
+  id: string;
+  name: string;
+  exercises: TemplateExercise[];
+  createdAt: string; // ISO
+  updatedAt: string; // ISO
+}
+
+export type UnitPreference = 'kg' | 'lb';
+
+export type ExperienceLevel = 'Beginner' | 'Intermediate' | 'Advanced';
+
+export type TrainingSplit =
+  | 'Push/Pull/Legs'
+  | 'Upper/Lower'
+  | 'Full Body'
+  | 'Bro Split'
+  | 'Custom';
+
+export type FitnessGoal =
+  | 'Build muscle'
+  | 'Get stronger'
+  | 'Lose fat'
+  | 'Improve fitness'
+  | 'General health';
+
+/**
+ * Local-only training profile. There is no auth/database yet — these values are
+ * persisted on-device and structured so they can be lifted to real user accounts
+ * (and used by future calculations / AI) without reshaping the data.
+ */
+export interface UserProfile {
+  name?: string;
+  email?: string;
+  experienceLevel?: ExperienceLevel;
+  preferredSplit?: TrainingSplit;
+}
+
+export interface UserGoals {
+  primaryFitnessGoal?: FitnessGoal;
+  targetBodyWeight?: number;
+  focusMuscleGroup?: MuscleGroup;
+}
+
+export interface BodyStats {
+  currentWeight?: number;
+  height?: number;
+}
+
 export interface Settings {
   userName: string;
-  weeklyGoal: number; // target workouts per week
-  unit: 'kg' | 'lb';
+  weeklyGoal: number; // target workouts per week (canonical weekly target)
+  unit: UnitPreference;
+  profile: UserProfile;
+  goals: UserGoals;
+  bodyStats: BodyStats;
 }
 
 /** Returned by finishWorkout() to power the celebration screen. */

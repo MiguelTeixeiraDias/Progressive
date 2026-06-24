@@ -9,7 +9,8 @@ export type TabParamList = {
   Workout: undefined;
   Exercises: undefined;
   Progress: undefined;
-  History: undefined;
+  // History intentionally preserved but unlinked — replaced by Settings in tabs.
+  Settings: undefined;
 };
 
 export type RootStackParamList = {
@@ -19,6 +20,8 @@ export type RootStackParamList = {
   ExerciseDetail: { exerciseId: string };
   WorkoutDetail: { sessionId: string };
   WorkoutComplete: { summary: WorkoutSummary };
+  /** Create (no id) or edit (with id) a reusable workout template. */
+  TemplateEditor: { templateId?: string } | undefined;
 };
 
 /** Props for a tab screen that can also reach the root stack (modals). */
