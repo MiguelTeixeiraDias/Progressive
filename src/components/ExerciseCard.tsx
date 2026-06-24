@@ -6,6 +6,7 @@ import { Exercise } from '../types';
 import { colors, family, font, radius, spacing } from '../theme';
 import Card from './Card';
 import MuscleGroupBadge from './MuscleGroupBadge';
+import MuscleGroupIcon from './MuscleGroupIcon';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -25,12 +26,11 @@ export default function ExerciseCard({
   trailingIcon = 'chevron-forward',
   trailingAccent = colors.textFaint,
 }: ExerciseCardProps) {
-  const monogram = exercise.muscleGroup.slice(0, 2).toUpperCase();
   return (
     <Card onPress={onPress} style={styles.card}>
       <View style={styles.row}>
         <View style={styles.monogram}>
-          <Text style={styles.monogramText}>{monogram}</Text>
+          <MuscleGroupIcon group={exercise.muscleGroup} size={22} />
         </View>
 
         <View style={styles.body}>
@@ -65,14 +65,6 @@ const styles = StyleSheet.create({
     borderColor: colors.borderStrong,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  monogramText: {
-    color: colors.text,
-    fontFamily: family.display,
-    fontSize: 22,
-    lineHeight: 26,
-    letterSpacing: 1,
-    includeFontPadding: false,
   },
   body: { flex: 1 },
   name: { color: colors.text, fontFamily: family.semibold, fontSize: font.lg },

@@ -9,6 +9,7 @@ import {
 import {
   addDays,
   dayKey,
+  dayMonth,
   DAY_MS,
   isLastWeek,
   isThisWeek,
@@ -684,6 +685,99 @@ export function exercisesByFrequency(
   return Object.entries(m)
     .map(([exerciseId, v]) => ({ exerciseId, name: v.name, count: v.count }))
     .sort((a, b) => b.count - a.count);
+}
+
+// ---------------------------------------------------------------------------
+// Single-exercise detail metrics
+// ---------------------------------------------------------------------------
+
+/** Completed sessions that include the exercise, oldest first. */
+export function workoutsForExercise(
+  sessions: WorkoutSession[],
+  exerciseId: string,
+): WorkoutSession[] {
+  return completed(sessions)
+    .filter((sn) => sn.exercises.some((e) => e.exerciseId === exerciseId))
+    .sort((a, b) => a.startedAt - b.startedAt);
+}
+
+/**
+ * Heaviest weight from a genuine single-rep set (reps === 1). Returns null when
+ * the user has never logged a true 1-rep set — no estimation is used.
+ */
+export function actualOneRepMax(
+  sessions: WorkoutSession[],
+  exerciseId: string,
+): number | null {
+  let best: number | null = null;
+  for (const sn of completed(sessions)) {
+    const we = sn.exercises.find((e) => e.exerciseId === exerciseId);
+    if (!we) continue;
+    for (const s of we.sets) {
+      if (s.completed && s.reps === 1 && s.weight > 0) {
+        if (best === null || s.weight > best) best = s.weight;
+      }
+    }
+  }
+  return best;
+}
+
+export interface DailyTopSet {
+  time: number; // start-of-day epoch ms
+  label: string; // e.g. "12 Jun"
+  topWeight: number;
+  reps: number; // reps achieved at that top weight
+}
+
+/** Heaviest top set per local day for an exercise, oldest → newest (one per day). */
+export function dailyTopSets(
+  sessions: WorkoutSession[],
+  exerciseId: string,
+): DailyTopSet[] {
+  const byDay = new Map<string, { time: number; topWeight: number; reps: number }>();
+  for (const sn of completed(sessions)) {
+    const we = sn.exercises.find((e) => e.exerciseId === exerciseId);
+    if (!we) continue;
+    for (const s of we.sets) {
+      if (!s.completed || s.weight <= 0) continue;
+      const key = dayKey(sn.startedAt);
+      const cur = byDay.get(key);
+      if (!cur) {
+        byDay.set(key, { time: startOfDay(sn.startedAt).getTime(), topWeight: s.weight, reps: s.reps });
+      } else if (s.weight > cur.topWeight || (s.weight === cur.topWeight && s.reps > cur.reps)) {
+        cur.topWeight = s.weight;
+        cur.reps = s.reps;
+      }
+    }
+  }
+  return [...byDay.values()]
+    .sort((a, b) => a.time - b.time)
+    .map((d) => ({ ...d, label: dayMonth(d.time) }));
+}
+
+/**
+ * Percentage change in per-session volume over the last 30 days for an exercise:
+ * latest vs earliest comparable session inside the window. null when there is
+ * not enough data (fewer than two sessions, or a zero earliest volume).
+ */
+export function exerciseMonthlyIncrease(
+  sessions: WorkoutSession[],
+  exerciseId: string,
+): number | null {
+  const since = startOfDay(Date.now()).getTime() - 30 * DAY_MS;
+  const points: number[] = [];
+  for (const sn of [...completed(sessions)].sort((a, b) => a.startedAt - b.startedAt)) {
+    if (sn.startedAt < since) continue;
+    const we = sn.exercises.find((e) => e.exerciseId === exerciseId);
+    if (!we) continue;
+    const vol = exerciseVolume(we, true);
+    if (vol > 0) points.push(vol);
+  }
+  if (points.length < 2) return null;
+  const earliest = points[0];
+  const latest = points[points.length - 1];
+  if (earliest <= 0) return null;
+  return ((latest - earliest) / earliest) * 100;
 }
 
 // ---------------------------------------------------------------------------

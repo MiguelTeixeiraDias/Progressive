@@ -4,7 +4,6 @@ import {
   Alert,
   FlatList,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -12,13 +11,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ExerciseCard, PrimaryButton } from '../components';
+import { ExerciseCard, MuscleFilter, MuscleFilterTabs, PrimaryButton, SearchInput } from '../components';
 import { RootStackScreenProps } from '../navigation/types';
 import { useStore } from '../store/useStore';
-import { Exercise, MUSCLE_GROUPS, MuscleGroup, TemplateExercise } from '../types';
+import { Exercise, TemplateExercise } from '../types';
 import { colors, family, font, radius, spacing } from '../theme';
-
-type Filter = 'All' | MuscleGroup;
 
 export default function TemplateEditorScreen({ route, navigation }: RootStackScreenProps<'TemplateEditor'>) {
   const exercises = useStore((s) => s.exercises);
@@ -33,7 +30,7 @@ export default function TemplateEditorScreen({ route, navigation }: RootStackScr
   const [name, setName] = useState(editing?.name ?? '');
   const [selected, setSelected] = useState<TemplateExercise[]>(editing?.exercises ?? []);
   const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState<Filter>('All');
+  const [filter, setFilter] = useState<MuscleFilter>('All');
 
   const isSelected = (id: string) => selected.some((p) => p.exerciseId === id);
 
@@ -121,44 +118,8 @@ export default function TemplateEditorScreen({ route, navigation }: RootStackScr
       )}
 
       <Text style={[styles.label, { marginTop: spacing.xl }]}>EXERCISE LIBRARY</Text>
-      <View style={styles.searchWrap}>
-        <Ionicons name="search" size={18} color={colors.textDim} />
-        <TextInput
-          value={query}
-          onChangeText={setQuery}
-          placeholder="Search exercises"
-          placeholderTextColor={colors.textFaint}
-          style={styles.search}
-          autoCorrect={false}
-        />
-        {query.length > 0 ? (
-          <Pressable onPress={() => setQuery('')} hitSlop={8}>
-            <Ionicons name="close-circle" size={18} color={colors.textFaint} />
-          </Pressable>
-        ) : null}
-      </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-        {(['All', ...MUSCLE_GROUPS] as Filter[]).map((f) => {
-          const sel = filter === f;
-          return (
-            <Pressable
-              key={f}
-              onPress={() => setFilter(f)}
-              style={[
-                styles.chip,
-                {
-                  backgroundColor: sel ? colors.primaryDim : 'transparent',
-                  borderColor: sel ? colors.primary : colors.borderStrong,
-                },
-              ]}
-            >
-              <Text style={[styles.chipText, { color: sel ? colors.primary : colors.textDim }]}>
-                {f.toUpperCase()}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+      <SearchInput value={query} onChangeText={setQuery} />
+      <MuscleFilterTabs value={filter} onChange={setFilter} style={styles.tabs} />
     </View>
   );
 
@@ -176,6 +137,7 @@ export default function TemplateEditorScreen({ route, navigation }: RootStackScr
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={header}
         ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
@@ -253,21 +215,9 @@ const styles = StyleSheet.create({
   selectedName: { flex: 1, color: colors.text, fontFamily: family.semibold, fontSize: font.body },
   selectedGroup: { color: colors.textFaint, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 0.8 },
   selectedRemove: { padding: 2 },
-  searchWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.card2,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.md,
-    height: 46,
-  },
-  search: { flex: 1, color: colors.text, fontFamily: family.body, fontSize: font.body, padding: 0 },
-  chips: { paddingVertical: spacing.md, gap: spacing.sm },
-  chip: { paddingHorizontal: spacing.lg, paddingVertical: 9, borderRadius: radius.sm, borderWidth: 1 },
-  chipText: { fontFamily: family.medium, fontSize: font.label, letterSpacing: 0.8 },
+  // Bleed the tabs out to the screen edges so they align with the other screens
+  // (the FlatList already applies horizontal padding to the header).
+  tabs: { marginHorizontal: -spacing.lg },
   empty: { color: colors.textDim, textAlign: 'center', marginTop: spacing.xl, fontFamily: family.body, fontSize: font.body },
   footer: {
     flexDirection: 'row',

@@ -3,13 +3,18 @@ import React, { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { EmptyState, KPICard, MuscleGroupBadge, PrimaryButton, StatChart } from '../components';
+import { EmptyState, KPICard, MuscleGroupBadge, PrimaryButton } from '../components';
 import { RootStackScreenProps } from '../navigation/types';
 import { useStore } from '../store/useStore';
 import { colors, family, font, radius, spacing } from '../theme';
-import { shortDate } from '../utils/date';
-import { formatVolume, formatWeight } from '../utils/format';
-import { computePRs, exerciseProgress } from '../utils/stats';
+import { formatWeight, signedPct } from '../utils/format';
+import {
+  actualOneRepMax,
+  computePRs,
+  dailyTopSets,
+  exerciseMonthlyIncrease,
+  workoutsForExercise,
+} from '../utils/stats';
 
 export default function ExerciseDetailScreen({ route, navigation }: RootStackScreenProps<'ExerciseDetail'>) {
   const { exerciseId } = route.params;
@@ -19,8 +24,17 @@ export default function ExerciseDetailScreen({ route, navigation }: RootStackScr
   const addExerciseToWorkout = useStore((s) => s.addExerciseToWorkout);
 
   const exercise = exercises.find((e) => e.id === exerciseId);
-  const pr = useMemo(() => computePRs(workouts)[exerciseId], [workouts, exerciseId]);
-  const progress = useMemo(() => exerciseProgress(workouts, exerciseId), [workouts, exerciseId]);
+
+  const m = useMemo(
+    () => ({
+      pr: computePRs(workouts)[exerciseId],
+      sessions: workoutsForExercise(workouts, exerciseId),
+      actual1RM: actualOneRepMax(workouts, exerciseId),
+      monthly: exerciseMonthlyIncrease(workouts, exerciseId),
+      tops: dailyTopSets(workouts, exerciseId),
+    }),
+    [workouts, exerciseId],
+  );
 
   if (!exercise) {
     return (
@@ -35,7 +49,8 @@ export default function ExerciseDetailScreen({ route, navigation }: RootStackScr
     );
   }
 
-  const chartData = progress.map((p, i) => ({ label: p.label, value: p.topWeight, highlight: i === progress.length - 1 }));
+  const hasData = m.sessions.length > 0 && !!m.pr;
+  const monthlyColor = m.monthly === null ? colors.text : m.monthly >= 0 ? colors.primary : colors.text;
 
   const addToWorkout = () => {
     addExerciseToWorkout(exercise.id);
@@ -57,7 +72,7 @@ export default function ExerciseDetailScreen({ route, navigation }: RootStackScr
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {progress.length === 0 || !pr ? (
+        {!hasData ? (
           <EmptyState
             icon="stats-chart-outline"
             title="No data yet"
@@ -68,36 +83,66 @@ export default function ExerciseDetailScreen({ route, navigation }: RootStackScr
         ) : (
           <>
             <View style={styles.tiles}>
-              <KPICard style={styles.tile} label="Best weight" value={pr.maxWeight} unit="kg" accent={colors.primary} countUp format={formatWeight} caption={`${pr.repsAtMaxWeight} REPS`} />
-              <KPICard style={styles.tile} label="Est. 1RM" value={pr.estimatedOneRepMax} unit="kg" countUp format={formatWeight} />
+              <KPICard
+                style={styles.tile}
+                label="Best weight"
+                value={m.pr.maxWeight}
+                unit="kg"
+                accent={colors.primary}
+                countUp
+                format={formatWeight}
+                caption={`${m.pr.repsAtMaxWeight} REPS`}
+              />
+              {m.actual1RM !== null ? (
+                <KPICard style={styles.tile} label="Actual 1RM" value={m.actual1RM} unit="kg" countUp format={formatWeight} caption="1 REP" />
+              ) : (
+                <KPICard style={styles.tile} label="Actual 1RM" value="—" caption="NO 1RM RECORDED" />
+              )}
             </View>
             <View style={styles.tiles}>
-              <KPICard style={styles.tile} label="Best volume" value={pr.bestVolume} unit="kg" countUp format={formatVolume} />
-              <KPICard style={styles.tile} label="Times trained" value={progress.length} countUp />
+              {m.monthly !== null ? (
+                <KPICard
+                  style={styles.tile}
+                  label="Last 30 days"
+                  value={m.monthly}
+                  accent={monthlyColor}
+                  countUp
+                  format={signedPct}
+                  caption="MONTHLY INCREASE"
+                />
+              ) : (
+                <KPICard style={styles.tile} label="Last 30 days" value="—" caption="NO COMPARISON YET" />
+              )}
+              <KPICard style={styles.tile} label="Times trained" value={m.sessions.length} countUp caption="SESSIONS" />
             </View>
 
+            {/* Top set weight — full recorded history, scroll horizontally (newest right) */}
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>TOP SET WEIGHT · KG</Text>
-              <StatChart data={chartData} color={colors.primary} height={150} showValues formatValue={formatWeight} />
-            </View>
-
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>SESSION HISTORY</Text>
-              <View style={{ gap: spacing.sm }}>
-                {[...progress].reverse().map((p) => (
-                  <View key={p.date} style={styles.histRow}>
-                    <Text style={styles.histDate}>{shortDate(p.date).toUpperCase()}</Text>
-                    <Text style={styles.histMain}>{formatWeight(p.topWeight)}kg top set</Text>
-                    <Text style={styles.histVol}>{formatVolume(p.volume)} kg</Text>
-                  </View>
-                ))}
-              </View>
+              <Text style={styles.cardTitle}>TOP SET HISTORY</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.timeline}
+              >
+                {m.tops.map((t, i) => {
+                  const newest = i === m.tops.length - 1;
+                  return (
+                    <View key={t.time} style={[styles.tlItem, newest && styles.tlItemActive]}>
+                      <Text style={styles.tlDate}>{t.label.toUpperCase()}</Text>
+                      <Text style={[styles.tlWeight, newest && { color: colors.primary }]}>
+                        {formatWeight(t.topWeight)}
+                      </Text>
+                      <Text style={styles.tlReps}>kg × {t.reps}</Text>
+                    </View>
+                  );
+                })}
+              </ScrollView>
             </View>
           </>
         )}
       </ScrollView>
 
-      {activeWorkout && progress.length > 0 ? (
+      {activeWorkout && hasData ? (
         <View style={styles.footer}>
           <PrimaryButton title="Add to Current Workout" icon="add" onPress={addToWorkout} fullWidth />
         </View>
@@ -116,18 +161,20 @@ const styles = StyleSheet.create({
   tile: { flex: 1 },
   card: { backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.lg, marginTop: spacing.xs },
   cardTitle: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 1.4, marginBottom: spacing.md },
-  histRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  timeline: { gap: spacing.sm, paddingRight: spacing.xs },
+  tlItem: {
+    width: 92,
     backgroundColor: colors.bgElevated,
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.border,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
+    gap: 2,
   },
-  histDate: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 0.8, width: 70 },
-  histMain: { color: colors.text, fontFamily: family.medium, fontSize: font.body, flex: 1 },
-  histVol: { color: colors.textDim, fontFamily: family.body, fontSize: font.small },
+  tlItemActive: { borderColor: colors.primary, backgroundColor: colors.primaryDim },
+  tlDate: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 0.8 },
+  tlWeight: { color: colors.text, fontFamily: family.display, fontSize: 30, lineHeight: 35, includeFontPadding: false, marginTop: 2 },
+  tlReps: { color: colors.textFaint, fontFamily: family.body, fontSize: font.small },
   footer: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.lg, borderTopWidth: 1, borderTopColor: colors.border },
 });
