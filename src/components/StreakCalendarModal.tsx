@@ -5,13 +5,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { WorkoutSession } from '../types';
 import { colors, family, font, radius, spacing } from '../theme';
-import { dayKey, dayMonth } from '../utils/date';
-import { currentStreak, longestStreakInfo, uniqueWorkoutDays } from '../utils/stats';
+import { dayKey } from '../utils/date';
+import { currentStreak, currentWeekProgress, uniqueWorkoutDays, weekStreak } from '../utils/stats';
 
 interface StreakCalendarModalProps {
   visible: boolean;
   onClose: () => void;
   sessions: WorkoutSession[];
+  /** Weekly workout-day target from settings; defaults to 3 when unset. */
+  weeklyGoal?: number;
 }
 
 const WEEKDAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
@@ -28,6 +30,7 @@ export default function StreakCalendarModal({
   visible,
   onClose,
   sessions,
+  weeklyGoal,
 }: StreakCalendarModalProps) {
   const [monthOffset, setMonthOffset] = useState(0);
 
@@ -36,9 +39,10 @@ export default function StreakCalendarModal({
     return {
       days,
       streak: currentStreak(sessions),
-      longest: longestStreakInfo(sessions),
+      weekStreak: weekStreak(sessions, weeklyGoal),
+      week: currentWeekProgress(sessions, weeklyGoal),
     };
-  }, [sessions]);
+  }, [sessions, weeklyGoal]);
 
   const view = useMemo(() => {
     const base = new Date();
@@ -61,13 +65,8 @@ export default function StreakCalendarModal({
     return { year, month, cells };
   }, [monthOffset, stats.days]);
 
-  const longest = stats.longest;
-  const bestRange =
-    longest.length > 0 && longest.start !== null && longest.end !== null
-      ? longest.start === longest.end
-        ? dayMonth(longest.start)
-        : `${dayMonth(longest.start)} – ${dayMonth(longest.end)}`
-      : null;
+  const week = stats.week;
+  const weekStatus = week.met ? 'GOAL MET' : `${Math.max(0, week.goal - week.done)} SHORT`;
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -90,23 +89,21 @@ export default function StreakCalendarModal({
           <View style={styles.statRow}>
             <View style={styles.statBox}>
               <Text style={styles.statValue}>{stats.streak}</Text>
-              <Text style={styles.statLabel}>CURRENT STREAK</Text>
+              <Text style={styles.statLabel}>DAY STREAK</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statBox}>
-              <Text style={styles.statValue}>{longest.length}</Text>
-              <Text style={styles.statLabel}>LONGEST STREAK</Text>
+              <Text style={styles.statValue}>{stats.weekStreak}</Text>
+              <Text style={styles.statLabel}>WEEK STREAK</Text>
             </View>
           </View>
 
-          {bestRange ? (
-            <View style={styles.bestRun}>
-              <Ionicons name="flame" size={14} color={colors.primary} />
-              <Text style={styles.bestRunText}>
-                BEST RUN · {bestRange.toUpperCase()}
-              </Text>
-            </View>
-          ) : null}
+          <View style={styles.bestRun}>
+            <Ionicons name={week.met ? 'checkmark-circle' : 'flame'} size={14} color={colors.primary} />
+            <Text style={styles.bestRunText}>
+              {week.done}/{week.goal} THIS WEEK · {weekStatus}
+            </Text>
+          </View>
 
           <View style={styles.calHeader}>
             <Pressable onPress={() => setMonthOffset((o) => o - 1)} hitSlop={10} style={styles.navBtn}>

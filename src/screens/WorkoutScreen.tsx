@@ -4,6 +4,7 @@ import {
   Alert,
   Animated,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -72,6 +73,8 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
     return map;
   }, [workouts, active?.exercises]);
 
+  const [confirmTpl, setConfirmTpl] = useState<WorkoutTemplate | null>(null);
+
   const [toast, setToast] = useState<{ text: string; accent: string } | null>(null);
   const toastOpacity = useRef(new Animated.Value(0)).current;
   const showToast = (text: string, accent: string) => {
@@ -87,23 +90,28 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
   // ── Pre-start screen ────────────────────────────────────────────────────
   if (!active) {
     const hasLast = !!lastWorkout(workouts);
+    const startFromConfirmed = () => {
+      const tpl = confirmTpl;
+      setConfirmTpl(null);
+      if (tpl) startWorkoutFromTemplate(tpl.id);
+    };
+
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
         <View style={styles.flex}>
-          {/* Top: editorial intro, left-aligned */}
+          {/* Top: single strong heading + intro */}
           <View style={styles.intro}>
             <View style={styles.introIcon}>
               <Ionicons name="barbell" size={26} color={colors.primary} />
             </View>
-            <Text style={styles.introKicker}>TODAY’S TRAINING</Text>
             <Text style={styles.introTitle}>READY TO TRAIN</Text>
             <Text style={styles.introText}>
               Start a session and log your sets as you go — or launch a saved template to skip setup.
             </Text>
           </View>
 
-          {/* Centre: two equal primary actions */}
-          <View style={styles.actionsArea}>
+          {/* Two equal primary actions, directly below the intro */}
+          <View style={styles.actions}>
             <PrimaryButton
               title="Start Workout"
               icon="add"
@@ -124,7 +132,7 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
             />
           </View>
 
-          {/* Templates */}
+          {/* Templates — directly below the buttons, vertical list with room to grow */}
           <View style={styles.templatesArea}>
             <Text style={styles.templatesLabel}>TEMPLATES</Text>
             {templates.length === 0 ? (
@@ -133,36 +141,32 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
               </Text>
             ) : (
               <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.templatesScroll}
+                style={styles.flex}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.templatesList}
               >
                 {templates.map((t) => (
                   <Pressable
                     key={t.id}
-                    onPress={() => startWorkoutFromTemplate(t.id)}
-                    style={({ pressed }) => [styles.tplCard, pressed && styles.tplCardPressed]}
+                    onPress={() => setConfirmTpl(t)}
+                    style={({ pressed }) => [styles.tplRow, pressed && styles.tplRowPressed]}
                   >
-                    <View style={styles.tplTop}>
-                      <Text style={styles.tplKicker}>TEMPLATE</Text>
-                      <Pressable
-                        onPress={() => navigation.navigate('TemplateEditor', { templateId: t.id })}
-                        hitSlop={8}
-                        style={styles.tplEdit}
-                      >
-                        <Ionicons name="create-outline" size={15} color={colors.textDim} />
-                      </Pressable>
+                    <View style={styles.flex}>
+                      <Text style={styles.tplRowName} numberOfLines={1}>
+                        {t.name.toUpperCase()}
+                      </Text>
+                      <Text style={styles.tplRowMeta} numberOfLines={1}>
+                        {t.exercises.length} EXERCISES · {templateGroups(t).slice(0, 3).join(' / ').toUpperCase()}
+                      </Text>
                     </View>
-                    <Text style={styles.tplName} numberOfLines={1}>
-                      {t.name.toUpperCase()}
-                    </Text>
-                    <Text style={styles.tplMeta} numberOfLines={1}>
-                      {t.exercises.length} EXERCISES · {templateGroups(t).slice(0, 3).join(' / ').toUpperCase()}
-                    </Text>
-                    <View style={styles.tplStart}>
-                      <Text style={styles.tplStartText}>START</Text>
-                      <Ionicons name="arrow-forward" size={13} color={colors.primary} />
-                    </View>
+                    <Pressable
+                      onPress={() => navigation.navigate('TemplateEditor', { templateId: t.id })}
+                      hitSlop={10}
+                      style={styles.tplRowEdit}
+                    >
+                      <Ionicons name="create-outline" size={16} color={colors.textDim} />
+                    </Pressable>
+                    <Ionicons name="arrow-forward" size={16} color={colors.primary} />
                   </Pressable>
                 ))}
               </ScrollView>
@@ -178,6 +182,27 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
           <Ionicons name="add" size={24} color={colors.bg} />
           <Text style={styles.fabText}>TEMPLATE</Text>
         </Pressable>
+
+        {/* Confirm before starting from a template */}
+        <Modal visible={!!confirmTpl} transparent animationType="fade" onRequestClose={() => setConfirmTpl(null)}>
+          <Pressable style={styles.confirmBackdrop} onPress={() => setConfirmTpl(null)}>
+            <Pressable style={styles.confirmDialog} onPress={() => {}}>
+              <Text style={styles.confirmKicker}>START FROM TEMPLATE</Text>
+              <Text style={styles.confirmName}>{confirmTpl?.name.toUpperCase()}</Text>
+              <Text style={styles.confirmMeta}>
+                {confirmTpl?.exercises.length ?? 0} EXERCISES
+                {confirmTpl && confirmTpl.exercises.length > 0
+                  ? ` · ${templateGroups(confirmTpl).slice(0, 3).join(' / ').toUpperCase()}`
+                  : ''}
+              </Text>
+              <Text style={styles.confirmCopy}>Start a workout using this template?</Text>
+              <View style={styles.confirmActions}>
+                <PrimaryButton title="Cancel" variant="secondary" size="md" onPress={() => setConfirmTpl(null)} style={styles.flex} />
+                <PrimaryButton title="Start Workout" icon="play" size="md" onPress={startFromConfirmed} style={styles.flex} />
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
       </SafeAreaView>
     );
   }
@@ -308,34 +333,47 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: spacing.lg,
   },
-  introKicker: { color: colors.primary, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 2 },
-  introTitle: { color: colors.text, fontFamily: family.display, fontSize: font.display, lineHeight: Math.ceil(font.display * 1.15), letterSpacing: 1, includeFontPadding: false, marginTop: 2 },
+  introTitle: { color: colors.text, fontFamily: family.display, fontSize: font.display, lineHeight: Math.ceil(font.display * 1.15), letterSpacing: 1, includeFontPadding: false },
   introText: { color: colors.textDim, fontFamily: family.body, fontSize: font.body, lineHeight: 21, marginTop: spacing.sm, maxWidth: 320 },
 
-  actionsArea: { flex: 1, justifyContent: 'center', paddingHorizontal: spacing.lg, gap: spacing.md },
+  actions: { paddingHorizontal: spacing.lg, gap: spacing.md, marginTop: spacing.xl },
   actionBtn: { width: '100%' },
 
-  templatesArea: { paddingBottom: spacing.xl, minHeight: 150 },
+  templatesArea: { flex: 1, marginTop: spacing.xl },
   templatesLabel: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 1.6, paddingHorizontal: spacing.lg, marginBottom: spacing.md },
   templatesEmpty: { color: colors.textFaint, fontFamily: family.body, fontSize: font.small, lineHeight: 18, paddingHorizontal: spacing.lg, maxWidth: 280 },
-  templatesScroll: { paddingHorizontal: spacing.lg, gap: spacing.md, paddingRight: 96 },
-  tplCard: {
-    width: 188,
+  templatesList: { paddingHorizontal: spacing.lg, gap: spacing.sm, paddingBottom: 110 },
+  tplRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
     backgroundColor: colors.card,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: spacing.lg,
-    gap: 6,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
   },
-  tplCardPressed: { borderColor: colors.borderStrong, transform: [{ scale: 1.01 }] },
-  tplTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  tplKicker: { color: colors.textFaint, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 1.4 },
-  tplEdit: { padding: 2 },
-  tplName: { color: colors.text, fontFamily: family.display, fontSize: font.h2, lineHeight: Math.ceil(font.h2 * 1.15), letterSpacing: 0.6, includeFontPadding: false, marginTop: 2 },
-  tplMeta: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 0.6 },
-  tplStart: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: spacing.sm },
-  tplStartText: { color: colors.primary, fontFamily: family.semibold, fontSize: font.tiny, letterSpacing: 1.2 },
+  tplRowPressed: { borderColor: colors.borderStrong, backgroundColor: colors.card2 },
+  tplRowName: { color: colors.text, fontFamily: family.display, fontSize: font.h3, lineHeight: Math.ceil(font.h3 * 1.15), letterSpacing: 0.5, includeFontPadding: false },
+  tplRowMeta: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 0.6, marginTop: 2 },
+  tplRowEdit: { width: 34, height: 34, borderRadius: radius.sm, backgroundColor: colors.card3, alignItems: 'center', justifyContent: 'center' },
+
+  // Confirm-from-template dialog
+  confirmBackdrop: { flex: 1, backgroundColor: colors.overlay, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl },
+  confirmDialog: {
+    width: '100%',
+    backgroundColor: colors.bgElevated,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.xl,
+  },
+  confirmKicker: { color: colors.primary, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 2 },
+  confirmName: { color: colors.text, fontFamily: family.display, fontSize: font.h1, lineHeight: Math.ceil(font.h1 * 1.15), letterSpacing: 0.5, includeFontPadding: false, marginTop: 4 },
+  confirmMeta: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 0.8, marginTop: 4 },
+  confirmCopy: { color: colors.textDim, fontFamily: family.body, fontSize: font.body, lineHeight: 21, marginTop: spacing.lg },
+  confirmActions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.xl },
 
   fab: {
     position: 'absolute',

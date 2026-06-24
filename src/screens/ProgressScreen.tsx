@@ -1,9 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Dimensions,
   FlatList,
   Modal,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -22,7 +24,6 @@ import {
   ProgressBar,
   SearchInput,
   SectionHeader,
-  StatChart,
 } from '../components';
 import { TabScreenProps } from '../navigation/types';
 import { useStore } from '../store/useStore';
@@ -34,16 +35,17 @@ import {
   computePRs,
   currentStreak,
   latestPersonalRecord,
-  monthlyConsistency,
   muscleFrequency,
   overloadInsights,
   overloadLabel,
   overloadScore,
   personalRecordList,
+  rollingWeekConsistency,
   weeklyOverloadPace,
 } from '../utils/stats';
 
-const MONTHS_BACK = [-5, -4, -3, -2, -1, 0];
+const DAY_LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+const MAX_KEY_LIFTS = 6;
 
 export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'>) {
   const workouts = useStore((s) => s.workouts);
@@ -64,6 +66,7 @@ export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'
       prMap: computePRs(workouts),
       muscleFreq: muscleFrequency(workouts, 4),
       insights: overloadInsights(workouts, settings.weeklyGoal),
+      weeks: rollingWeekConsistency(workouts, settings.weeklyGoal, 4),
     };
   }, [workouts, settings.weeklyGoal]);
 
@@ -71,11 +74,12 @@ export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'
   const paceColor = data.pace === null ? colors.text : data.pace >= 0 ? colors.primary : colors.text;
   const maxFreq = Math.max(1, ...data.muscleFreq.map((m) => m.value));
 
-  // Editable "key lifts" PR tiles.
-  const featured = settings.featuredExercises.slice(0, 3);
-  const [editingSlot, setEditingSlot] = useState<number | null>(null);
+  // Key lifts (editable from the heading) — 3–6 chosen exercises.
+  const featured = settings.featuredExercises.slice(0, MAX_KEY_LIFTS);
+  const [editorOpen, setEditorOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<MuscleFilter>('All');
+  const colW = (Dimensions.get('window').width - spacing.lg * 2 - spacing.md * 2) / 3;
 
   const pickList = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -85,20 +89,33 @@ export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [exercises, query, filter]);
 
-  const chooseExercise = (ex: Exercise) => {
-    if (editingSlot === null) return;
-    const next = [...settings.featuredExercises];
-    next[editingSlot] = ex.id;
-    updateSettings({ featuredExercises: next });
-    setEditingSlot(null);
+  const toggleFeatured = (ex: Exercise) => {
+    const cur = settings.featuredExercises;
+    if (cur.includes(ex.id)) {
+      updateSettings({ featuredExercises: cur.filter((id) => id !== ex.id) });
+    } else if (cur.length < MAX_KEY_LIFTS) {
+      updateSettings({ featuredExercises: [...cur, ex.id] });
+    }
+  };
+  const closeEditor = () => {
+    setEditorOpen(false);
     setQuery('');
     setFilter('All');
   };
 
-  // Month pager — auto-scroll to the current month (last page) on first layout.
-  const pageWidth = Dimensions.get('window').width - spacing.lg * 2;
-  const monthRef = useRef<ScrollView>(null);
-  const didInit = useRef(false);
+  // PR card scroll affordance (vertical progress indicator).
+  const [pr, setPr] = useState({ y: 0, content: 0, layout: 0 });
+  const onPrScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    // Read synchronously — the synthetic event is pooled/nullified before the
+    // state updater runs, so capturing it inside setPr would crash.
+    const y = e.nativeEvent.contentOffset.y;
+    setPr((p) => ({ ...p, y }));
+  };
+  const prScrollable = pr.content > pr.layout + 4;
+  const prThumbH = prScrollable ? Math.max(28, (pr.layout / pr.content) * pr.layout) : 0;
+  const prThumbY = prScrollable
+    ? (pr.y / (pr.content - pr.layout)) * (pr.layout - prThumbH)
+    : 0;
 
   if (workouts.length === 0) {
     return (
@@ -146,37 +163,40 @@ export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'
           )}
         </View>
 
-        {/* Key lifts — editable PR tiles */}
+        {/* Key lifts — edit from the heading */}
         <View style={styles.section}>
-          <SectionHeader title="Key Lifts" subtitle="Tap a lift to swap · personal records" />
-          <View style={styles.keyLifts}>
-            {featured.map((exId, i) => {
-              const ex = exercises.find((e) => e.id === exId);
-              const pr = data.prMap[exId];
-              const has = !!pr && pr.maxWeight > 0;
-              return (
-                <Pressable
-                  key={`${exId}-${i}`}
-                  onPress={() => setEditingSlot(i)}
-                  style={({ pressed }) => [styles.keyTile, pressed && styles.keyTilePressed]}
-                >
-                  <View style={styles.keyTop}>
+          <SectionHeader title="Key Lifts" subtitle="Personal records on your main lifts" actionLabel="Edit" onAction={() => setEditorOpen(true)} />
+          {featured.length === 0 ? (
+            <View style={styles.card}>
+              <EmptyState icon="barbell-outline" title="No key lifts" message="Choose the lifts you want to track here." actionLabel="Choose Lifts" onAction={() => setEditorOpen(true)} />
+            </View>
+          ) : (
+            <View style={styles.keyLifts}>
+              {featured.map((exId) => {
+                const ex = exercises.find((e) => e.id === exId);
+                const recd = data.prMap[exId];
+                const has = !!recd && recd.maxWeight > 0;
+                return (
+                  <Pressable
+                    key={exId}
+                    onPress={() => navigation.navigate('ExerciseDetail', { exerciseId: exId })}
+                    style={({ pressed }) => [styles.keyTile, { width: colW }, pressed && styles.keyTilePressed]}
+                  >
                     <Text style={styles.keyName} numberOfLines={1}>
-                      {(ex?.name ?? 'Pick lift').toUpperCase()}
+                      {(ex?.name ?? 'Unknown').toUpperCase()}
                     </Text>
-                    <Ionicons name="pencil" size={11} color={colors.textFaint} />
-                  </View>
-                  <View style={styles.keyValueRow}>
-                    <Text style={styles.keyValue}>{has ? formatWeight(pr.maxWeight) : '—'}</Text>
-                    {has ? <Text style={styles.keyUnit}>kg</Text> : null}
-                  </View>
-                  <Text style={styles.keySub} numberOfLines={1}>
-                    {has ? `${pr.repsAtMaxWeight} REPS` : 'NO PR YET'}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
+                    <View style={styles.keyValueRow}>
+                      <Text style={styles.keyValue}>{has ? formatWeight(recd.maxWeight) : '—'}</Text>
+                      {has ? <Text style={styles.keyUnit}>kg</Text> : null}
+                    </View>
+                    <Text style={styles.keySub} numberOfLines={1}>
+                      {has ? `${recd.repsAtMaxWeight} REPS` : 'NO PR YET'}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
         </View>
 
         {/* Progressive overload */}
@@ -204,37 +224,34 @@ export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'
           </View>
         </View>
 
-        {/* Weekly consistency — one month per page, swipe to snap between months */}
+        {/* Weekly consistency — rolling 4 weeks */}
         <View style={styles.section}>
-          <SectionHeader title="Weekly Consistency" subtitle="Workouts per week · swipe months" />
-          <ScrollView
-            ref={monthRef}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            onContentSizeChange={() => {
-              if (!didInit.current) {
-                didInit.current = true;
-                monthRef.current?.scrollToEnd({ animated: false });
-              }
-            }}
-          >
-            {MONTHS_BACK.map((off) => {
-              const mc = monthlyConsistency(workouts, off);
-              return (
-                <View key={off} style={{ width: pageWidth }}>
-                  <View style={styles.card}>
-                    <Text style={styles.monthLabel}>{mc.label.toUpperCase()}</Text>
-                    {mc.weeks.length > 0 ? (
-                      <StatChart data={mc.weeks} color={colors.primary} height={120} showValues />
-                    ) : (
-                      <Text style={styles.muted}>No weeks recorded.</Text>
-                    )}
+          <SectionHeader title="Weekly Consistency" subtitle="Last 4 weeks · unique workout days" />
+          <View style={styles.weekStack}>
+            {data.weeks.map((w) => (
+              <View key={w.offset} style={[styles.weekCard, w.isCurrent && styles.weekCardCurrent]}>
+                <View style={styles.weekTop}>
+                  <Text style={styles.weekLabel}>{w.label.toUpperCase()}</Text>
+                  <View style={styles.weekStatusRow}>
+                    <Text style={[styles.weekProgress, w.met && { color: colors.primary }]}>
+                      {w.uniqueDays}/{w.goal}
+                    </Text>
+                    <Text style={[styles.weekStatus, w.met ? styles.weekStatusMet : styles.weekStatusShort]}>
+                      {w.met ? 'GOAL MET' : `${Math.max(0, w.goal - w.uniqueDays)} SHORT`}
+                    </Text>
                   </View>
                 </View>
-              );
-            })}
-          </ScrollView>
+                <View style={styles.weekBlocks}>
+                  {DAY_LETTERS.map((d, i) => (
+                    <View key={i} style={styles.weekDayCol}>
+                      <View style={[styles.weekBlock, w.days[i] ? styles.weekBlockOn : styles.weekBlockOff]} />
+                      <Text style={styles.weekDayLetter}>{d}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            ))}
+          </View>
         </View>
 
         {/* Muscle frequency */}
@@ -254,39 +271,56 @@ export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'
           </View>
         </View>
 
-        {/* Personal records — scroll within the card (≈6 visible) */}
+        {/* Personal records — scroll within the card */}
         <View style={styles.section}>
-          <SectionHeader title="Personal Records" subtitle="Your heaviest lifts" />
-          <ScrollView
-            style={styles.prScroll}
-            nestedScrollEnabled
-            showsVerticalScrollIndicator
-            contentContainerStyle={styles.prScrollContent}
-          >
-            {data.prs.map((pr) => (
-              <Pressable key={pr.exerciseId} onPress={() => navigation.navigate('ExerciseDetail', { exerciseId: pr.exerciseId })}>
-                <PersonalBestBadge
-                  title={pr.exerciseName}
-                  value={`${formatWeight(pr.maxWeight)} kg`}
-                  caption={`${pr.repsAtMaxWeight} reps · e1RM ${formatWeight(pr.estimatedOneRepMax)} kg`}
-                />
-              </Pressable>
-            ))}
-          </ScrollView>
+          <SectionHeader title="Personal Records" subtitle="Your heaviest lifts · scroll for more" />
+          <View style={styles.prWrap}>
+            <ScrollView
+              style={styles.prScroll}
+              nestedScrollEnabled
+              showsVerticalScrollIndicator={false}
+              scrollEventThrottle={16}
+              onScroll={onPrScroll}
+              onLayout={(e) => {
+                const layout = e.nativeEvent.layout.height;
+                setPr((p) => ({ ...p, layout }));
+              }}
+              onContentSizeChange={(_w, h) => setPr((p) => ({ ...p, content: h }))}
+              contentContainerStyle={styles.prScrollContent}
+            >
+              {data.prs.map((rec) => (
+                <Pressable key={rec.exerciseId} onPress={() => navigation.navigate('ExerciseDetail', { exerciseId: rec.exerciseId })}>
+                  <PersonalBestBadge
+                    title={rec.exerciseName}
+                    value={`${formatWeight(rec.maxWeight)} kg`}
+                    caption={`${rec.repsAtMaxWeight} reps · e1RM ${formatWeight(rec.estimatedOneRepMax)} kg`}
+                  />
+                </Pressable>
+              ))}
+            </ScrollView>
+            {prScrollable ? (
+              <View style={styles.prTrack} pointerEvents="none">
+                <View style={[styles.prThumb, { height: prThumbH, transform: [{ translateY: prThumbY }] }]} />
+              </View>
+            ) : null}
+          </View>
         </View>
       </ScrollView>
 
-      {/* Edit modal for the key-lift PR tiles */}
-      <Modal visible={editingSlot !== null} animationType="slide" transparent onRequestClose={() => setEditingSlot(null)}>
+      {/* Key Lifts editor — multi-select */}
+      <Modal visible={editorOpen} animationType="slide" transparent onRequestClose={closeEditor}>
         <View style={styles.modalBackdrop}>
           <SafeAreaView style={styles.modalSheet} edges={['bottom']}>
             <View style={styles.modalHandleWrap}>
               <View style={styles.modalHandle} />
             </View>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>CHOOSE LIFT</Text>
-              <Pressable onPress={() => setEditingSlot(null)} hitSlop={8} style={styles.modalClose}>
-                <Ionicons name="close" size={20} color={colors.textDim} />
+              <View>
+                <Text style={styles.modalTitle}>KEY LIFTS</Text>
+                <Text style={styles.modalHint}>{featured.length}/{MAX_KEY_LIFTS} selected · choose up to {MAX_KEY_LIFTS}</Text>
+              </View>
+              <Pressable onPress={closeEditor} hitSlop={8} style={styles.modalClose}>
+                <Ionicons name="checkmark" size={20} color={colors.bg} />
               </Pressable>
             </View>
             <SearchInput value={query} onChangeText={setQuery} style={styles.modalSearch} />
@@ -300,13 +334,13 @@ export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'
               contentContainerStyle={styles.modalList}
               ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
               renderItem={({ item }) => {
-                const sel = editingSlot !== null && settings.featuredExercises[editingSlot] === item.id;
+                const sel = settings.featuredExercises.includes(item.id);
                 return (
                   <ExerciseCard
                     exercise={item}
-                    trailingIcon={sel ? 'checkmark-circle' : 'add-circle-outline'}
+                    trailingIcon={sel ? 'checkmark-circle' : 'ellipse-outline'}
                     trailingAccent={sel ? colors.primary : colors.textFaint}
-                    onPress={() => chooseExercise(item)}
+                    onPress={() => toggleFeatured(item)}
                   />
                 );
               }}
@@ -330,9 +364,8 @@ const styles = StyleSheet.create({
   card: { backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.lg },
 
   // Key lifts
-  keyLifts: { flexDirection: 'row', gap: spacing.md },
+  keyLifts: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   keyTile: {
-    flex: 1,
     backgroundColor: colors.card,
     borderRadius: radius.md,
     borderWidth: 1,
@@ -342,10 +375,9 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   keyTilePressed: { borderColor: colors.borderStrong, transform: [{ scale: 1.01 }] },
-  keyTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 4 },
-  keyName: { flex: 1, color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 0.6 },
+  keyName: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 0.6 },
   keyValueRow: { flexDirection: 'row', alignItems: 'flex-end' },
-  keyValue: { color: colors.text, fontFamily: family.display, fontSize: 34, lineHeight: 39, includeFontPadding: false },
+  keyValue: { color: colors.text, fontFamily: family.display, fontSize: 32, lineHeight: 37, includeFontPadding: false },
   keyUnit: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, marginLeft: 3, marginBottom: 6 },
   keySub: { color: colors.textFaint, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 0.6 },
 
@@ -361,9 +393,23 @@ const styles = StyleSheet.create({
   insightTick: { width: 3, height: 16, backgroundColor: colors.primary, marginTop: 2 },
   insightText: { color: colors.textDim, fontFamily: family.body, fontSize: font.body, flex: 1, lineHeight: 21 },
 
-  // Month pager
-  monthLabel: { color: colors.text, fontFamily: family.semibold, fontSize: font.label, letterSpacing: 1.4, marginBottom: spacing.md },
-  muted: { color: colors.textDim, fontFamily: family.body, fontSize: font.body, textAlign: 'center', paddingVertical: spacing.lg },
+  // Weekly consistency (rolling 4 weeks)
+  weekStack: { gap: spacing.sm },
+  weekCard: { backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.lg, gap: spacing.md },
+  weekCardCurrent: { borderColor: colors.borderStrong },
+  weekTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  weekLabel: { color: colors.text, fontFamily: family.semibold, fontSize: font.label, letterSpacing: 0.8 },
+  weekStatusRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  weekProgress: { color: colors.text, fontFamily: family.display, fontSize: font.h3, lineHeight: Math.ceil(font.h3 * 1.15), includeFontPadding: false },
+  weekStatus: { fontFamily: family.semibold, fontSize: font.tiny, letterSpacing: 0.8 },
+  weekStatusMet: { color: colors.primary },
+  weekStatusShort: { color: colors.textFaint },
+  weekBlocks: { flexDirection: 'row', gap: 6 },
+  weekDayCol: { flex: 1, alignItems: 'center', gap: 4 },
+  weekBlock: { width: '100%', height: 22, borderRadius: radius.xs },
+  weekBlockOn: { backgroundColor: colors.primary },
+  weekBlockOff: { backgroundColor: withAlpha(colors.text, 0.07), borderWidth: 1, borderColor: colors.border },
+  weekDayLetter: { color: colors.textFaint, fontFamily: family.medium, fontSize: font.tiny },
 
   // Muscle frequency
   muscleRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 7 },
@@ -372,10 +418,13 @@ const styles = StyleSheet.create({
   muscleValue: { color: colors.textDim, fontFamily: family.display, fontSize: font.lg, width: 36, textAlign: 'right', includeFontPadding: false },
 
   // Personal records
+  prWrap: { position: 'relative' },
   prScroll: { maxHeight: 392 },
-  prScrollContent: { gap: spacing.sm, paddingBottom: 2 },
+  prScrollContent: { gap: spacing.sm, paddingBottom: 2, paddingRight: spacing.sm },
+  prTrack: { position: 'absolute', right: 0, top: 4, bottom: 4, width: 3, borderRadius: 2, backgroundColor: withAlpha(colors.text, 0.08) },
+  prThumb: { width: 3, borderRadius: 2, backgroundColor: colors.primary },
 
-  // Edit modal
+  // Modals
   modalBackdrop: { flex: 1, backgroundColor: colors.overlay, justifyContent: 'flex-end' },
   modalSheet: {
     height: '82%',
@@ -389,7 +438,8 @@ const styles = StyleSheet.create({
   modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.borderStrong },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
   modalTitle: { color: colors.text, fontFamily: family.display, fontSize: font.h2, lineHeight: Math.ceil(font.h2 * 1.15), letterSpacing: 1, includeFontPadding: false },
-  modalClose: { width: 36, height: 36, borderRadius: radius.sm, backgroundColor: colors.card3, alignItems: 'center', justifyContent: 'center' },
+  modalHint: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 0.6, marginTop: 2 },
+  modalClose: { width: 36, height: 36, borderRadius: radius.sm, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   modalSearch: { marginHorizontal: spacing.lg },
   modalList: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
 });

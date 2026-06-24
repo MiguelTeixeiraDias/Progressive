@@ -172,6 +172,120 @@ export function longestStreakInfo(sessions: WorkoutSession[]): LongestStreakInfo
 }
 
 // ---------------------------------------------------------------------------
+// Weekly goal: week streak + rolling consistency (unique workout days vs goal)
+// ---------------------------------------------------------------------------
+
+/** Fallback when the user has not configured a weekly workout target. */
+export const DEFAULT_WEEKLY_GOAL = 3;
+
+export function resolveWeeklyGoal(goal?: number | null): number {
+  return goal && goal > 0 ? goal : DEFAULT_WEEKLY_GOAL;
+}
+
+/** Start-of-day epoch times that had at least one completed workout. */
+function workoutDayTimes(sessions: WorkoutSession[]): Set<number> {
+  return new Set(completed(sessions).map((s) => startOfDay(s.startedAt).getTime()));
+}
+
+/** Unique workout days within the week at the given offset (0 = current week). */
+export function uniqueWorkoutDaysInWeek(sessions: WorkoutSession[], weekOffset = 0): number {
+  const ws = addDays(startOfWeek(Date.now()), 7 * weekOffset).getTime();
+  const we = ws + 7 * DAY_MS;
+  let count = 0;
+  for (const t of workoutDayTimes(sessions)) if (t >= ws && t < we) count += 1;
+  return count;
+}
+
+export interface WeekProgress {
+  done: number; // unique workout days this week
+  goal: number;
+  met: boolean;
+}
+
+/** Current-week progress toward the weekly goal, counting unique workout days. */
+export function currentWeekProgress(sessions: WorkoutSession[], goal?: number): WeekProgress {
+  const g = resolveWeeklyGoal(goal);
+  const done = uniqueWorkoutDaysInWeek(sessions, 0);
+  return { done, goal: g, met: done >= g };
+}
+
+/**
+ * Consecutive weeks that met the weekly goal (unique workout days ≥ goal). The
+ * current week is treated as in-progress: if it has not met the goal yet it does
+ * not break the streak — counting simply resumes from last week.
+ */
+export function weekStreak(sessions: WorkoutSession[], goal?: number): number {
+  const g = resolveWeeklyGoal(goal);
+  const dayTimes = workoutDayTimes(sessions);
+  if (dayTimes.size === 0) return 0;
+  const start = startOfWeek(Date.now());
+  const met = (offset: number) => {
+    const ws = addDays(start, 7 * offset).getTime();
+    const we = ws + 7 * DAY_MS;
+    let c = 0;
+    for (const t of dayTimes) if (t >= ws && t < we) c += 1;
+    return c >= g;
+  };
+
+  let offset = 0;
+  if (!met(0)) {
+    offset = -1; // current week not done yet — hold and start from last week
+    if (!met(-1)) return 0;
+  }
+  let streak = 0;
+  while (met(offset)) {
+    streak += 1;
+    offset -= 1;
+  }
+  return streak;
+}
+
+export function weekLabel(offset: number): string {
+  if (offset === 0) return 'This week';
+  if (offset === -1) return 'Last week';
+  return `${-offset} weeks ago`;
+}
+
+export interface WeekConsistency {
+  offset: number; // 0 = this week, -1 = last week, …
+  label: string;
+  days: boolean[]; // Mon..Sun — whether a workout was logged that day
+  uniqueDays: number;
+  goal: number;
+  met: boolean;
+  isCurrent: boolean;
+}
+
+/** Rolling consistency for the last `count` weeks, newest first. */
+export function rollingWeekConsistency(
+  sessions: WorkoutSession[],
+  goal?: number,
+  count = 4,
+): WeekConsistency[] {
+  const g = resolveWeeklyGoal(goal);
+  const dayTimes = workoutDayTimes(sessions);
+  const start = startOfWeek(Date.now());
+  const out: WeekConsistency[] = [];
+  for (let i = 0; i < count; i++) {
+    const offset = -i;
+    const ws = addDays(start, 7 * offset);
+    const days: boolean[] = [];
+    for (let d = 0; d < 7; d++) days.push(dayTimes.has(addDays(ws, d).getTime()));
+    const uniqueDays = days.filter(Boolean).length;
+    out.push({
+      offset,
+      label: weekLabel(offset),
+      days,
+      uniqueDays,
+      goal: g,
+      met: uniqueDays >= g,
+      isCurrent: offset === 0,
+    });
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // Progressive-overload percentage increase (exercise volume vs previous logging)
 // ---------------------------------------------------------------------------
 

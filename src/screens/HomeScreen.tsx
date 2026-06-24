@@ -20,6 +20,7 @@ import { dayKey, fullDate, timeOfDay } from '../utils/date';
 import { formatWeight, signedPct } from '../utils/format';
 import {
   currentStreak,
+  currentWeekProgress,
   dailyPctIncreaseThisWeek,
   dayAvgPctIncrease,
   hasComparisonData,
@@ -62,6 +63,7 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
     };
   }, [workouts]);
 
+  const week = currentWeekProgress(workouts, settings.weeklyGoal);
   const todayCol = (new Date().getDay() + 6) % 7;
   const trainedThisWeek = m.muscleGrid.some((row) => row.days.some(Boolean));
   const weekPctColor =
@@ -97,7 +99,9 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
               style={({ pressed }) => [styles.streakChip, pressed && styles.streakChipPressed]}
             >
               <Ionicons name="flame" size={13} color={colors.primary} />
-              <Text style={styles.streakTag}>STREAK · {m.streak}</Text>
+              <Text style={styles.streakTag}>{m.streak}</Text>
+              <View style={styles.streakDivider} />
+              <Text style={styles.streakWeek}>{week.done}/{week.goal} WK</Text>
             </Pressable>
           </View>
           <Text style={styles.greeting}>
@@ -253,7 +257,7 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
         </View>
       </ScrollView>
 
-      <StreakCalendarModal visible={streakOpen} onClose={() => setStreakOpen(false)} sessions={workouts} />
+      <StreakCalendarModal visible={streakOpen} onClose={() => setStreakOpen(false)} sessions={workouts} weeklyGoal={settings.weeklyGoal} />
     </SafeAreaView>
   );
 }
@@ -278,6 +282,8 @@ const styles = StyleSheet.create({
   },
   streakChipPressed: { backgroundColor: colors.primarySoft },
   streakTag: { color: colors.primary, fontFamily: family.semibold, fontSize: font.tiny, letterSpacing: 1.5 },
+  streakDivider: { width: 1, height: 10, backgroundColor: withAlpha(colors.primary, 0.4) },
+  streakWeek: { color: colors.primary, fontFamily: family.semibold, fontSize: font.tiny, letterSpacing: 1 },
   greeting: {
     ...displayText(46, 0.5),
     color: colors.text,
