@@ -40,9 +40,12 @@ export default function TabNavigator() {
           backgroundColor: colors.card2,
           borderTopColor: colors.border,
           borderTopWidth: 1,
-          height: 74 + insets.bottom,
-          paddingTop: 10,
-          paddingBottom: insets.bottom > 0 ? insets.bottom : 12,
+          height: 90 + insets.bottom,
+          paddingTop: 12,
+          // Extra bottom padding lifts the icons/labels clear of the device's
+          // rounded corners / home indicator (the safe-area inset is 0 in the
+          // PWA, so we keep a solid fallback).
+          paddingBottom: insets.bottom > 0 ? insets.bottom + 6 : 22,
         },
         // Keep the label small with no extra letter-spacing so the longest names
         // ("EXERCISES", "SETTINGS") fit their slot without being clipped. We let
