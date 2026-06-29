@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -17,15 +17,13 @@ import { useAuth } from '../auth/AuthContext';
 import { TabScreenProps } from '../navigation/types';
 import { useStore } from '../store/useStore';
 import {
-  BodyStats,
   ExperienceLevel,
   FitnessGoal,
   MUSCLE_GROUPS,
   MuscleGroup,
+  Settings,
   TrainingSplit,
   UnitPreference,
-  UserGoals,
-  UserProfile,
 } from '../types';
 import { colors, family, font, radius, spacing } from '../theme';
 
@@ -65,27 +63,88 @@ function Choice<T extends string>({
   );
 }
 
+/**
+ * Flat, editable mirror of the settings this screen exposes. Numeric inputs are
+ * held as raw strings so the text fields behave naturally while typing; they're
+ * parsed back to numbers only on save.
+ */
+interface Draft {
+  name: string;
+  email: string;
+  experienceLevel?: ExperienceLevel;
+  preferredSplit?: TrainingSplit;
+  unit: UnitPreference;
+  bodyWeight: string;
+  height: string;
+  weeklyGoal: number;
+  primaryFitnessGoal?: FitnessGoal;
+  targetBodyWeight: string;
+  focusMuscleGroup?: MuscleGroup;
+}
+
+function toDraft(s: Settings): Draft {
+  return {
+    name: s.profile.name ?? s.userName ?? '',
+    email: s.profile.email ?? '',
+    experienceLevel: s.profile.experienceLevel,
+    preferredSplit: s.profile.preferredSplit,
+    unit: s.unit,
+    bodyWeight: numStr(s.bodyStats.currentWeight),
+    height: numStr(s.bodyStats.height),
+    weeklyGoal: s.weeklyGoal,
+    primaryFitnessGoal: s.goals.primaryFitnessGoal,
+    targetBodyWeight: numStr(s.goals.targetBodyWeight),
+    focusMuscleGroup: s.goals.focusMuscleGroup,
+  };
+}
+
 export default function SettingsScreen(_: TabScreenProps<'Settings'>) {
   const settings = useStore((s) => s.settings);
   const updateSettings = useStore((s) => s.updateSettings);
   const { user, signOut } = useAuth();
 
-  // Text/number fields keep local state and commit on blur to avoid persisting
-  // on every keystroke; selections (chips/units) commit immediately.
-  const [name, setName] = useState(settings.profile.name ?? settings.userName ?? '');
-  const [email, setEmail] = useState(settings.profile.email ?? '');
-  const [bodyWeight, setBodyWeight] = useState(numStr(settings.bodyStats.currentWeight));
-  const [height, setHeight] = useState(numStr(settings.bodyStats.height));
-  const [targetWeight, setTargetWeight] = useState(numStr(settings.goals.targetBodyWeight));
+  // Edits live in a local draft and only commit to the store on Save. Resync the
+  // draft whenever the persisted settings change (e.g. a cloud load after sign-in
+  // or right after we save); while editing, settings never change underneath us.
+  const [draft, setDraft] = useState<Draft>(() => toDraft(settings));
+  useEffect(() => {
+    setDraft(toDraft(settings));
+  }, [settings]);
 
-  const setProfile = (patch: Partial<UserProfile>) =>
-    updateSettings({ profile: { ...settings.profile, ...patch } });
-  const setGoals = (patch: Partial<UserGoals>) =>
-    updateSettings({ goals: { ...settings.goals, ...patch } });
-  const setBody = (patch: Partial<BodyStats>) =>
-    updateSettings({ bodyStats: { ...settings.bodyStats, ...patch } });
+  const patch = (p: Partial<Draft>) => setDraft((d) => ({ ...d, ...p }));
 
-  const unitLabel = settings.unit;
+  const dirty = JSON.stringify(draft) !== JSON.stringify(toDraft(settings));
+
+  const onSave = () => {
+    const trimmedName = draft.name.trim();
+    updateSettings({
+      userName: trimmedName || 'Athlete',
+      unit: draft.unit,
+      weeklyGoal: draft.weeklyGoal,
+      profile: {
+        ...settings.profile,
+        name: trimmedName || undefined,
+        email: draft.email.trim() || undefined,
+        experienceLevel: draft.experienceLevel,
+        preferredSplit: draft.preferredSplit,
+      },
+      bodyStats: {
+        ...settings.bodyStats,
+        currentWeight: parseNum(draft.bodyWeight),
+        height: parseNum(draft.height),
+      },
+      goals: {
+        ...settings.goals,
+        primaryFitnessGoal: draft.primaryFitnessGoal,
+        targetBodyWeight: parseNum(draft.targetBodyWeight),
+        focusMuscleGroup: draft.focusMuscleGroup,
+      },
+    });
+  };
+
+  const onDiscard = () => setDraft(toDraft(settings));
+
+  const unitLabel = draft.unit;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -102,16 +161,8 @@ export default function SettingsScreen(_: TabScreenProps<'Settings'>) {
             <View style={styles.card}>
               <Field label="NAME">
                 <TextInput
-                  value={name}
-                  onChangeText={setName}
-                  onEndEditing={() => {
-                    const trimmed = name.trim();
-                    // Keep the home greeting (userName) in sync with the profile name.
-                    updateSettings({
-                      profile: { ...settings.profile, name: trimmed || undefined },
-                      userName: trimmed || 'Athlete',
-                    });
-                  }}
+                  value={draft.name}
+                  onChangeText={(v) => patch({ name: v })}
                   placeholder="Your name"
                   placeholderTextColor={colors.textFaint}
                   style={styles.input}
@@ -119,9 +170,8 @@ export default function SettingsScreen(_: TabScreenProps<'Settings'>) {
               </Field>
               <Field label="EMAIL">
                 <TextInput
-                  value={email}
-                  onChangeText={setEmail}
-                  onEndEditing={() => setProfile({ email: email.trim() || undefined })}
+                  value={draft.email}
+                  onChangeText={(v) => patch({ email: v })}
                   placeholder="you@email.com"
                   placeholderTextColor={colors.textFaint}
                   keyboardType="email-address"
@@ -130,10 +180,10 @@ export default function SettingsScreen(_: TabScreenProps<'Settings'>) {
                 />
               </Field>
               <Field label="EXPERIENCE LEVEL">
-                <Choice value={settings.profile.experienceLevel} options={EXPERIENCE} onSelect={(v) => setProfile({ experienceLevel: v })} />
+                <Choice value={draft.experienceLevel} options={EXPERIENCE} onSelect={(v) => patch({ experienceLevel: v })} />
               </Field>
               <Field label="PREFERRED SPLIT">
-                <Choice value={settings.profile.preferredSplit} options={SPLITS} onSelect={(v) => setProfile({ preferredSplit: v })} />
+                <Choice value={draft.preferredSplit} options={SPLITS} onSelect={(v) => patch({ preferredSplit: v })} />
               </Field>
             </View>
           </View>
@@ -143,7 +193,7 @@ export default function SettingsScreen(_: TabScreenProps<'Settings'>) {
             <SectionHeader title="App Preferences" subtitle="Units used across the workout flow" />
             <View style={styles.card}>
               <Field label="WEIGHT UNIT">
-                <Choice value={settings.unit} options={UNITS} onSelect={(v) => updateSettings({ unit: v })} />
+                <Choice value={draft.unit} options={UNITS} onSelect={(v) => patch({ unit: v })} />
               </Field>
             </View>
           </View>
@@ -154,9 +204,8 @@ export default function SettingsScreen(_: TabScreenProps<'Settings'>) {
             <View style={styles.card}>
               <Field label={`CURRENT WEIGHT · ${unitLabel.toUpperCase()}`}>
                 <TextInput
-                  value={bodyWeight}
-                  onChangeText={setBodyWeight}
-                  onEndEditing={() => setBody({ currentWeight: parseNum(bodyWeight) })}
+                  value={draft.bodyWeight}
+                  onChangeText={(v) => patch({ bodyWeight: v })}
                   placeholder="0"
                   placeholderTextColor={colors.textFaint}
                   keyboardType="decimal-pad"
@@ -165,9 +214,8 @@ export default function SettingsScreen(_: TabScreenProps<'Settings'>) {
               </Field>
               <Field label="HEIGHT · CM">
                 <TextInput
-                  value={height}
-                  onChangeText={setHeight}
-                  onEndEditing={() => setBody({ height: parseNum(height) })}
+                  value={draft.height}
+                  onChangeText={(v) => patch({ height: v })}
                   placeholder="0"
                   placeholderTextColor={colors.textFaint}
                   keyboardType="decimal-pad"
@@ -184,14 +232,14 @@ export default function SettingsScreen(_: TabScreenProps<'Settings'>) {
               <Field label="WEEKLY WORKOUT TARGET">
                 <View style={styles.counter}>
                   <Pressable
-                    onPress={() => updateSettings({ weeklyGoal: Math.max(1, settings.weeklyGoal - 1) })}
+                    onPress={() => patch({ weeklyGoal: Math.max(1, draft.weeklyGoal - 1) })}
                     style={styles.counterBtn}
                   >
                     <Text style={styles.counterSign}>–</Text>
                   </Pressable>
-                  <Text style={styles.counterValue}>{settings.weeklyGoal}</Text>
+                  <Text style={styles.counterValue}>{draft.weeklyGoal}</Text>
                   <Pressable
-                    onPress={() => updateSettings({ weeklyGoal: Math.min(14, settings.weeklyGoal + 1) })}
+                    onPress={() => patch({ weeklyGoal: Math.min(14, draft.weeklyGoal + 1) })}
                     style={styles.counterBtn}
                   >
                     <Text style={styles.counterSign}>+</Text>
@@ -200,13 +248,12 @@ export default function SettingsScreen(_: TabScreenProps<'Settings'>) {
                 </View>
               </Field>
               <Field label="PRIMARY FITNESS GOAL">
-                <Choice value={settings.goals.primaryFitnessGoal} options={GOALS} onSelect={(v) => setGoals({ primaryFitnessGoal: v })} />
+                <Choice value={draft.primaryFitnessGoal} options={GOALS} onSelect={(v) => patch({ primaryFitnessGoal: v })} />
               </Field>
               <Field label={`TARGET BODY WEIGHT · ${unitLabel.toUpperCase()} (OPTIONAL)`}>
                 <TextInput
-                  value={targetWeight}
-                  onChangeText={setTargetWeight}
-                  onEndEditing={() => setGoals({ targetBodyWeight: parseNum(targetWeight) })}
+                  value={draft.targetBodyWeight}
+                  onChangeText={(v) => patch({ targetBodyWeight: v })}
                   placeholder="0"
                   placeholderTextColor={colors.textFaint}
                   keyboardType="decimal-pad"
@@ -216,11 +263,11 @@ export default function SettingsScreen(_: TabScreenProps<'Settings'>) {
               <Field label="FOCUS MUSCLE GROUP (OPTIONAL)">
                 <View style={styles.choices}>
                   {MUSCLE_GROUPS.map((g) => {
-                    const sel = settings.goals.focusMuscleGroup === g;
+                    const sel = draft.focusMuscleGroup === g;
                     return (
                       <Pressable
                         key={g}
-                        onPress={() => setGoals({ focusMuscleGroup: sel ? undefined : (g as MuscleGroup) })}
+                        onPress={() => patch({ focusMuscleGroup: sel ? undefined : (g as MuscleGroup) })}
                         style={[styles.choice, { backgroundColor: sel ? colors.primaryDim : colors.card, borderColor: sel ? colors.primary : colors.border }]}
                       >
                         <Text style={[styles.choiceText, { color: sel ? colors.primary : colors.textDim }]}>{g}</Text>
@@ -249,6 +296,29 @@ export default function SettingsScreen(_: TabScreenProps<'Settings'>) {
             Your workouts, templates and profile sync to the cloud and load on any device you sign in to.
           </Text>
         </ScrollView>
+
+        {/* Sticky save bar — changes above only take effect once confirmed here. */}
+        <View style={styles.footer}>
+          <Text style={[styles.footerHint, dirty && styles.footerHintActive]}>
+            {dirty ? 'You have unsaved changes' : 'All changes saved'}
+          </Text>
+          <View style={styles.footerRow}>
+            <PrimaryButton
+              title="Discard"
+              variant="ghost"
+              onPress={onDiscard}
+              disabled={!dirty}
+              style={styles.footerBtn}
+            />
+            <PrimaryButton
+              title="Save changes"
+              icon="checkmark"
+              onPress={onSave}
+              disabled={!dirty}
+              style={styles.footerBtn}
+            />
+          </View>
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -312,4 +382,17 @@ const styles = StyleSheet.create({
   counterUnit: { color: colors.textDim, fontFamily: family.body, fontSize: font.small, marginLeft: spacing.sm },
   accountEmail: { color: colors.text, fontFamily: family.medium, fontSize: font.body },
   footnote: { color: colors.textFaint, fontFamily: family.body, fontSize: font.small, lineHeight: 18 },
+  footer: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    backgroundColor: colors.bg,
+    gap: spacing.sm,
+  },
+  footerHint: { color: colors.textFaint, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 1.2, textAlign: 'center' },
+  footerHintActive: { color: colors.primary },
+  footerRow: { flexDirection: 'row', gap: spacing.md },
+  footerBtn: { flex: 1 },
 });
