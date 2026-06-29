@@ -99,15 +99,10 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
         <View style={styles.flex}>
-          {/* Top: single strong heading + intro */}
-          <View style={styles.intro}>
-            <View style={styles.introIcon}>
-              <Ionicons name="barbell" size={26} color={colors.primary} />
-            </View>
-            <Text style={styles.introTitle}>READY TO TRAIN</Text>
-            <Text style={styles.introText}>
-              Start a session and log your sets as you go — or launch a saved template to skip setup.
-            </Text>
+          {/* Page heading — consistent with the other tabs */}
+          <View style={styles.head}>
+            <Text style={styles.headTitle}>WORKOUT</Text>
+            <Text style={styles.subtitle}>START A SESSION · LOG YOUR SETS</Text>
           </View>
 
           {/* Two equal primary actions, directly below the intro */}
@@ -338,20 +333,9 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
 
   // Pre-start
-  intro: { paddingHorizontal: spacing.lg, paddingTop: spacing.xl },
-  introIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.primary,
-    backgroundColor: colors.primaryDim,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.lg,
-  },
-  introTitle: { color: colors.text, fontFamily: family.display, fontSize: font.display, lineHeight: Math.ceil(font.display * 1.15), letterSpacing: 1, includeFontPadding: false },
-  introText: { color: colors.textDim, fontFamily: family.body, fontSize: font.body, lineHeight: 21, marginTop: spacing.sm, maxWidth: 320 },
+  head: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.md },
+  headTitle: { color: colors.text, fontFamily: family.display, fontSize: font.display, lineHeight: Math.ceil(font.display * 1.15), letterSpacing: 1, includeFontPadding: false },
+  subtitle: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 1.2, marginTop: 2 },
 
   actions: { paddingHorizontal: spacing.lg, gap: spacing.md, marginTop: spacing.xl },
   actionBtn: { width: '100%' },

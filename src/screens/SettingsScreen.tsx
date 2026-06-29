@@ -297,28 +297,17 @@ export default function SettingsScreen(_: TabScreenProps<'Settings'>) {
           </Text>
         </ScrollView>
 
-        {/* Sticky save bar — changes above only take effect once confirmed here. */}
-        <View style={styles.footer}>
-          <Text style={[styles.footerHint, dirty && styles.footerHintActive]}>
-            {dirty ? 'You have unsaved changes' : 'All changes saved'}
-          </Text>
-          <View style={styles.footerRow}>
-            <PrimaryButton
-              title="Discard"
-              variant="ghost"
-              onPress={onDiscard}
-              disabled={!dirty}
-              style={styles.footerBtn}
-            />
-            <PrimaryButton
-              title="Save changes"
-              icon="checkmark"
-              onPress={onSave}
-              disabled={!dirty}
-              style={styles.footerBtn}
-            />
+        {/* Sticky save bar — only shown while there are unsaved edits; it
+            disappears again once you Save or Discard. */}
+        {dirty ? (
+          <View style={styles.footer}>
+            <Text style={styles.footerHint}>You have unsaved changes</Text>
+            <View style={styles.footerRow}>
+              <PrimaryButton title="Discard" variant="ghost" onPress={onDiscard} style={styles.footerBtn} />
+              <PrimaryButton title="Save changes" icon="checkmark" onPress={onSave} style={styles.footerBtn} />
+            </View>
           </View>
-        </View>
+        ) : null}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -391,8 +380,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
     gap: spacing.sm,
   },
-  footerHint: { color: colors.textFaint, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 1.2, textAlign: 'center' },
-  footerHintActive: { color: colors.primary },
+  footerHint: { color: colors.primary, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 1.2, textAlign: 'center' },
   footerRow: { flexDirection: 'row', gap: spacing.md },
   footerBtn: { flex: 1 },
 });
