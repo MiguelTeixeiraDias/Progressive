@@ -11,6 +11,7 @@ export function registerPWA(): void {
   if (typeof document === 'undefined') return;
 
   setViewport();
+  injectBaseStyles();
 
   ensureLink('manifest', { rel: 'manifest', href: '/manifest.json' });
   ensureLink('apple-touch-icon', { rel: 'apple-touch-icon', href: '/apple-touch-icon-180.png' });
@@ -31,12 +32,14 @@ export function registerPWA(): void {
  * the bottom tab bar drops below the fold and the page can't reflow/scroll for a
  * moment after the keyboard closes. `resizes-content` resizes the layout
  * viewport so the shell (and tab bar) track the keyboard and restore instantly.
- * `viewport-fit=cover` keeps safe-area insets working in the standalone PWA.
+ *
+ * We deliberately do NOT use `viewport-fit=cover`: on iOS it extends the layout
+ * into the bottom safe area, and after the keyboard dismisses that inset isn't
+ * always reclaimed — leaving a stubborn blank band below the tab bar.
  * Unlike ensureMeta, this replaces the existing tag rather than skipping it.
  */
 function setViewport(): void {
-  const content =
-    'width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content';
+  const content = 'width=device-width, initial-scale=1, interactive-widget=resizes-content';
   let meta = document.head.querySelector('meta[name="viewport"]') as HTMLMetaElement | null;
   if (!meta) {
     meta = document.createElement('meta');
@@ -44,6 +47,32 @@ function setViewport(): void {
     document.head.appendChild(meta);
   }
   meta.content = content;
+}
+
+/**
+ * Pin the page to the dynamic viewport and paint everything behind the app the
+ * app's dark background. The document's default background is white, so any gap
+ * the browser leaves below the app shell (e.g. a viewport that doesn't fully
+ * snap back after the keyboard closes) shows through as a white band. Using
+ * `100dvh` makes the root track the *current* viewport — including keyboard and
+ * browser-toolbar changes — and `overflow: hidden` stops the document itself
+ * from scrolling (our own ScrollViews handle scrolling), so no blank strip can
+ * be revealed below the tab bar.
+ */
+function injectBaseStyles(): void {
+  if (document.getElementById('progressive-base-styles')) return;
+  const style = document.createElement('style');
+  style.id = 'progressive-base-styles';
+  style.textContent = `
+    html, body, #root {
+      margin: 0;
+      height: 100%;
+      min-height: 100dvh;
+      background-color: #0B0F14;
+    }
+    body { overflow: hidden; overscroll-behavior: none; }
+  `;
+  document.head.appendChild(style);
 }
 
 function ensureLink(key: string, attrs: { rel: string; href: string }): void {
