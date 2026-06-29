@@ -11,7 +11,7 @@ import HomeScreen from '../screens/HomeScreen';
 import ProgressScreen from '../screens/ProgressScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import WorkoutScreen from '../screens/WorkoutScreen';
-import { colors, family, font, spacing } from '../theme';
+import { colors, family, font } from '../theme';
 import { TabParamList } from './types';
 
 const Tab = createBottomTabNavigator<TabParamList>();
@@ -44,14 +44,16 @@ export default function TabNavigator() {
           height: 74 + insets.bottom,
           paddingTop: 10,
           paddingBottom: insets.bottom > 0 ? insets.bottom : 12,
-          // A little inset for edge breathing room — kept modest so the longest
-          // label ("EXERCISES") isn't clipped.
-          paddingHorizontal: spacing.sm,
+        },
+        // Give each tab its full share of the width and trim internal padding so
+        // the longest labels ("EXERCISES", "SETTINGS") aren't clipped.
+        tabBarItemStyle: {
+          paddingHorizontal: 0,
         },
         tabBarLabelStyle: {
           fontSize: font.tiny,
           fontFamily: family.medium,
-          letterSpacing: 0.4,
+          letterSpacing: 0,
           textTransform: 'uppercase',
           marginTop: 2,
         },
