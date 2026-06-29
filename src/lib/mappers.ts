@@ -30,6 +30,7 @@ export interface ProfileRow {
   current_weight: number | null;
   height: number | null;
   featured_exercises: string[] | null;
+  hidden_exercise_ids: string[] | null;
 }
 
 export interface ExerciseRow {
@@ -167,6 +168,7 @@ export function rowToSettings(r: ProfileRow): Settings {
       height: r.height ?? undefined,
     },
     featuredExercises: r.featured_exercises ?? [],
+    hiddenExerciseIds: r.hidden_exercise_ids ?? [],
   };
 }
 
@@ -187,6 +189,7 @@ export function settingsToProfileRow(userId: string, s: Settings): ProfileRow & 
     current_weight: s.bodyStats.currentWeight ?? null,
     height: s.bodyStats.height ?? null,
     featured_exercises: s.featuredExercises,
+    hidden_exercise_ids: s.hiddenExerciseIds ?? [],
   };
 }
 

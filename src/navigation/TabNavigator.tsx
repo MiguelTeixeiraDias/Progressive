@@ -11,7 +11,7 @@ import HomeScreen from '../screens/HomeScreen';
 import ProgressScreen from '../screens/ProgressScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import WorkoutScreen from '../screens/WorkoutScreen';
-import { colors, family, font } from '../theme';
+import { colors, family } from '../theme';
 import { TabParamList } from './types';
 
 const Tab = createBottomTabNavigator<TabParamList>();
@@ -36,7 +36,6 @@ export default function TabNavigator() {
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textFaint,
         tabBarShowLabel: true,
-        tabBarLabelPosition: 'below-icon',
         tabBarStyle: {
           backgroundColor: colors.card2,
           borderTopColor: colors.border,
@@ -45,17 +44,15 @@ export default function TabNavigator() {
           paddingTop: 10,
           paddingBottom: insets.bottom > 0 ? insets.bottom : 12,
         },
-        // Give each tab its full share of the width and trim internal padding so
-        // the longest labels ("EXERCISES", "SETTINGS") aren't clipped.
-        tabBarItemStyle: {
-          paddingHorizontal: 0,
-        },
+        // Keep the label small with no extra letter-spacing so the longest names
+        // ("EXERCISES", "SETTINGS") fit their slot without being clipped. We let
+        // React Navigation place the label (forcing below-icon constrained the
+        // label width to the icon on web and cut off the longer names).
         tabBarLabelStyle: {
-          fontSize: font.tiny,
+          fontSize: 10,
           fontFamily: family.medium,
           letterSpacing: 0,
           textTransform: 'uppercase',
-          marginTop: 2,
         },
         tabBarIcon: ({ focused, color, size }) => (
           <Ionicons

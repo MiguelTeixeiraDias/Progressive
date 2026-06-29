@@ -151,22 +151,18 @@ export default function ExerciseDetailScreen({ route, navigation }: RootStackScr
         )}
       </ScrollView>
 
-      {(activeWorkout && hasData) || exercise.isCustom ? (
-        <View style={styles.footer}>
-          {activeWorkout && hasData ? (
-            <PrimaryButton title="Add to Current Workout" icon="add" onPress={addToWorkout} fullWidth />
-          ) : null}
-          {exercise.isCustom ? (
-            <PrimaryButton
-              title="Delete Exercise"
-              icon="trash-outline"
-              variant="danger"
-              onPress={() => setConfirmDelete(true)}
-              fullWidth
-            />
-          ) : null}
-        </View>
-      ) : null}
+      <View style={styles.footer}>
+        {activeWorkout && hasData ? (
+          <PrimaryButton title="Add to Current Workout" icon="add" onPress={addToWorkout} fullWidth />
+        ) : null}
+        <PrimaryButton
+          title="Delete Exercise"
+          icon="trash-outline"
+          variant="danger"
+          onPress={() => setConfirmDelete(true)}
+          fullWidth
+        />
+      </View>
 
       {/* Confirm before deleting — a custom modal, since RN's Alert is a no-op on web. */}
       <Modal visible={confirmDelete} transparent animationType="fade" onRequestClose={() => setConfirmDelete(false)}>

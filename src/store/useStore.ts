@@ -98,7 +98,15 @@ const DEFAULT_SETTINGS: Settings = {
   goals: {},
   bodyStats: {},
   featuredExercises: ['ex_squat', 'ex_bench_press', 'ex_deadlift'],
+  hiddenExerciseIds: [],
 };
+
+/** Default library minus the built-ins this user has hidden/deleted. */
+function visibleDefaults(hiddenIds?: string[]): Exercise[] {
+  if (!hiddenIds?.length) return DEFAULT_EXERCISES;
+  const hidden = new Set(hiddenIds);
+  return DEFAULT_EXERCISES.filter((e) => !hidden.has(e.id));
+}
 
 function newSession(name: string): WorkoutSession {
   const now = Date.now();
@@ -158,6 +166,7 @@ export const useStore = create<StoreState>()(
             bodyStats: { ...DEFAULT_SETTINGS.bodyStats, ...s.bodyStats },
             featuredExercises:
               s.featuredExercises?.length ? s.featuredExercises : DEFAULT_SETTINGS.featuredExercises,
+            hiddenExerciseIds: s.hiddenExerciseIds ?? [],
           },
           hydrated: true,
         });
@@ -165,13 +174,15 @@ export const useStore = create<StoreState>()(
 
       loadFromServer: async (userId) => {
         const data = await loadUserData(userId);
+        const settings = data.settings ?? DEFAULT_SETTINGS;
         set({
           userId,
-          // Custom (server) exercises first, then the static default library.
-          exercises: [...data.customExercises, ...DEFAULT_EXERCISES],
+          // Custom (server) exercises first, then the default library minus any
+          // built-ins this user has hidden.
+          exercises: [...data.customExercises, ...visibleDefaults(settings.hiddenExerciseIds)],
           workouts: data.workouts,
           templates: data.templates,
-          settings: data.settings ?? DEFAULT_SETTINGS,
+          settings,
           activeWorkout: get().userId === userId ? get().activeWorkout : null,
         });
       },
@@ -254,25 +265,36 @@ export const useStore = create<StoreState>()(
       },
 
       deleteExercise: (id) => {
-        // Only user-created exercises can be removed; the built-in library stays.
         const ex = get().exercises.find((e) => e.id === id);
-        if (!ex || !ex.isCustom) return;
+        if (!ex) return;
+        const isCustom = ex.isCustom;
 
-        const featured = get().settings.featuredExercises ?? [];
-        const wasFeatured = featured.includes(id);
+        const prev = get().settings;
+        const wasFeatured = (prev.featuredExercises ?? []).includes(id);
+        // Custom exercises are deleted outright; built-ins are hidden per-user so
+        // the deletion only affects this account, never the shared library.
+        const hiddenExerciseIds = isCustom
+          ? prev.hiddenExerciseIds ?? []
+          : Array.from(new Set([...(prev.hiddenExerciseIds ?? []), id]));
+
+        const nextSettings: Settings = {
+          ...prev,
+          featuredExercises: wasFeatured
+            ? (prev.featuredExercises ?? []).filter((f) => f !== id)
+            : prev.featuredExercises,
+          hiddenExerciseIds,
+        };
+        const settingsChanged = wasFeatured || !isCustom;
 
         set((s) => ({
           exercises: s.exercises.filter((e) => e.id !== id),
-          // Drop it from the Progress "key lifts" tiles if it was pinned there.
-          settings: wasFeatured
-            ? { ...s.settings, featuredExercises: featured.filter((f) => f !== id) }
-            : s.settings,
+          settings: settingsChanged ? nextSettings : s.settings,
         }));
 
         const userId = get().userId;
         if (userId) {
-          fireAndForget('deleteCustomExercise', deleteCustomExerciseRemote(id));
-          if (wasFeatured) fireAndForget('saveSettings', saveSettings(userId, get().settings));
+          if (isCustom) fireAndForget('deleteCustomExercise', deleteCustomExerciseRemote(id));
+          if (settingsChanged) fireAndForget('saveSettings', saveSettings(userId, get().settings));
         }
       },
 
