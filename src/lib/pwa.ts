@@ -10,6 +10,8 @@ export function registerPWA(): void {
   if (Platform.OS !== 'web') return;
   if (typeof document === 'undefined') return;
 
+  setViewport();
+
   ensureLink('manifest', { rel: 'manifest', href: '/manifest.json' });
   ensureLink('apple-touch-icon', { rel: 'apple-touch-icon', href: '/apple-touch-icon-180.png' });
 
@@ -20,6 +22,28 @@ export function registerPWA(): void {
   ensureMeta('theme-color', '#0B0F14');
 
   registerServiceWorker();
+}
+
+/**
+ * Overwrite Expo's generated viewport meta. The key bit is
+ * `interactive-widget=resizes-content`: without it, the on-screen keyboard only
+ * shrinks the visual viewport, so our full-height flex shell keeps its size —
+ * the bottom tab bar drops below the fold and the page can't reflow/scroll for a
+ * moment after the keyboard closes. `resizes-content` resizes the layout
+ * viewport so the shell (and tab bar) track the keyboard and restore instantly.
+ * `viewport-fit=cover` keeps safe-area insets working in the standalone PWA.
+ * Unlike ensureMeta, this replaces the existing tag rather than skipping it.
+ */
+function setViewport(): void {
+  const content =
+    'width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content';
+  let meta = document.head.querySelector('meta[name="viewport"]') as HTMLMetaElement | null;
+  if (!meta) {
+    meta = document.createElement('meta');
+    meta.name = 'viewport';
+    document.head.appendChild(meta);
+  }
+  meta.content = content;
 }
 
 function ensureLink(key: string, attrs: { rel: string; href: string }): void {
