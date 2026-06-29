@@ -130,12 +130,11 @@ export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      <View style={styles.head}>
+        <Text style={styles.title}>PROGRESS</Text>
+        <Text style={styles.subtitle}>THE PERFORMANCE REPORT</Text>
+      </View>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.head}>
-          <Text style={styles.title}>PROGRESS</Text>
-          <Text style={styles.subtitle}>THE PERFORMANCE REPORT</Text>
-        </View>
-
         {/* Headline tiles */}
         <View style={styles.tiles}>
           {data.pace !== null ? (
@@ -355,9 +354,9 @@ export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.lg },
-  head: { paddingTop: spacing.sm },
+  head: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.md },
   title: { color: colors.text, fontFamily: family.display, fontSize: font.display, lineHeight: Math.ceil(font.display * 1.15), letterSpacing: 1, includeFontPadding: false },
-  subtitle: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 1.4, marginTop: 2 },
+  subtitle: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 1.2, marginTop: 2 },
   tiles: { flexDirection: 'row', gap: spacing.md },
   tile: { flex: 1 },
   section: {},

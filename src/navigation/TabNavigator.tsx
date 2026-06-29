@@ -11,7 +11,7 @@ import HomeScreen from '../screens/HomeScreen';
 import ProgressScreen from '../screens/ProgressScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import WorkoutScreen from '../screens/WorkoutScreen';
-import { colors, family, font } from '../theme';
+import { colors, family, font, spacing } from '../theme';
 import { TabParamList } from './types';
 
 const Tab = createBottomTabNavigator<TabParamList>();
@@ -35,6 +35,7 @@ export default function TabNavigator() {
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textFaint,
+        tabBarShowLabel: true,
         tabBarStyle: {
           backgroundColor: colors.card2,
           borderTopColor: colors.border,
@@ -42,6 +43,9 @@ export default function TabNavigator() {
           height: 60 + insets.bottom,
           paddingTop: 8,
           paddingBottom: insets.bottom > 0 ? insets.bottom : 10,
+          // Inset the row so the tabs pack a little closer together and leave
+          // breathing room at the far left/right edges.
+          paddingHorizontal: spacing.xl,
         },
         tabBarLabelStyle: {
           fontSize: font.tiny,
