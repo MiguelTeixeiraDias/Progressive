@@ -108,6 +108,11 @@ export async function saveCustomExercise(userId: string, exercise: Exercise): Pr
   if (error) throw error;
 }
 
+export async function deleteCustomExercise(exerciseId: string): Promise<void> {
+  const { error } = await supabase.from('exercises').delete().eq('id', exerciseId);
+  if (error) throw error;
+}
+
 export async function saveTemplate(userId: string, template: WorkoutTemplate): Promise<void> {
   const { error: tErr } = await supabase.from('templates').upsert(templateToRow(userId, template));
   if (tErr) throw tErr;

@@ -4,6 +4,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { DEFAULT_EXERCISES } from '../data/exercises';
 import {
+  deleteCustomExercise as deleteCustomExerciseRemote,
   deleteTemplate as deleteTemplateRemote,
   fireAndForget,
   loadUserData,
@@ -51,6 +52,8 @@ interface StoreState {
 
   // library
   addExercise: (name: string, muscleGroup: MuscleGroup) => Exercise;
+  /** Remove a user-created exercise from the library (no-op for built-ins). */
+  deleteExercise: (id: string) => void;
 
   // templates
   addTemplate: (name: string, exercises: TemplateExercise[]) => WorkoutTemplate;
@@ -248,6 +251,29 @@ export const useStore = create<StoreState>()(
         const userId = get().userId;
         if (userId) fireAndForget('saveCustomExercise', saveCustomExercise(userId, exercise));
         return exercise;
+      },
+
+      deleteExercise: (id) => {
+        // Only user-created exercises can be removed; the built-in library stays.
+        const ex = get().exercises.find((e) => e.id === id);
+        if (!ex || !ex.isCustom) return;
+
+        const featured = get().settings.featuredExercises ?? [];
+        const wasFeatured = featured.includes(id);
+
+        set((s) => ({
+          exercises: s.exercises.filter((e) => e.id !== id),
+          // Drop it from the Progress "key lifts" tiles if it was pinned there.
+          settings: wasFeatured
+            ? { ...s.settings, featuredExercises: featured.filter((f) => f !== id) }
+            : s.settings,
+        }));
+
+        const userId = get().userId;
+        if (userId) {
+          fireAndForget('deleteCustomExercise', deleteCustomExerciseRemote(id));
+          if (wasFeatured) fireAndForget('saveSettings', saveSettings(userId, get().settings));
+        }
       },
 
       startWorkout: (name) => {
