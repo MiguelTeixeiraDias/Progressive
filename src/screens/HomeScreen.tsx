@@ -16,6 +16,15 @@ import { TabScreenProps } from '../navigation/types';
 import { useStore } from '../store/useStore';
 import { colors, displayText, family, font, radius, spacing } from '../theme';
 import { withAlpha } from '../utils/color';
+import {
+  bmi,
+  bmiLabel,
+  focusStatus,
+  nextSplitSession,
+  repGuidance,
+  suggestedIncrement,
+  weightToTarget,
+} from '../utils/coaching';
 import { dayKey, fullDate, timeOfDay } from '../utils/date';
 import { formatWeight, signedPct } from '../utils/format';
 import {
@@ -62,6 +71,30 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
       lastPct: last ? dayAvgPctIncrease(workouts, dayKey(last.startedAt)) : null,
     };
   }, [workouts]);
+
+  // Coaching cues derived from the profile/goal data in Settings.
+  const unit = settings.unit.toUpperCase();
+  const bodyWeight = settings.bodyStats.currentWeight;
+  // BMI is kg-based; body weight is stored in the user's unit, so normalise.
+  const bodyWeightKg =
+    bodyWeight != null ? (settings.unit === 'lb' ? bodyWeight * 0.453592 : bodyWeight) : undefined;
+  const bmiValue = useMemo(
+    () => bmi(bodyWeightKg, settings.bodyStats.height),
+    [bodyWeightKg, settings.bodyStats.height],
+  );
+  const target = weightToTarget(settings.bodyStats.currentWeight, settings.goals.targetBodyWeight);
+  const trainNext = useMemo(
+    () => nextSplitSession(settings.profile.preferredSplit, workouts),
+    [settings.profile.preferredSplit, workouts],
+  );
+  const focus = useMemo(
+    () => focusStatus(settings.goals.focusMuscleGroup, workouts),
+    [settings.goals.focusMuscleGroup, workouts],
+  );
+  const reps = repGuidance(settings.goals.primaryFitnessGoal);
+  const targetIncrement = m.target
+    ? suggestedIncrement(settings.profile.experienceLevel, m.target.topWeight)
+    : 0;
 
   const week = currentWeekProgress(workouts, settings.weeklyGoal);
   const todayCol = (new Date().getDay() + 6) % 7;
@@ -124,6 +157,23 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
           ) : null}
         </View>
 
+        {/* Train next — suggested session from the user's preferred split */}
+        {trainNext ? (
+          <Pressable onPress={goToWorkout} style={({ pressed }) => [styles.trainNext, pressed && styles.trainNextPressed]}>
+            <View style={styles.trainNextIcon}>
+              <Ionicons name="barbell" size={18} color={colors.bg} />
+            </View>
+            <View style={styles.flex}>
+              <Text style={styles.trainNextLabel}>TRAIN NEXT · {settings.profile.preferredSplit?.toUpperCase()}</Text>
+              <Text style={styles.trainNextName}>{trainNext.name.toUpperCase()}</Text>
+              <Text style={styles.trainNextGroups} numberOfLines={1}>
+                {trainNext.groups.join(' · ').toUpperCase()}
+              </Text>
+            </View>
+            <Ionicons name="arrow-forward" size={18} color={colors.primary} />
+          </Pressable>
+        ) : null}
+
         {/* Feature: progressive-overload increase this week */}
         <Card style={styles.feature}>
           <Text style={styles.cardLabel}>INCREASE THIS WEEK</Text>
@@ -152,6 +202,34 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
           )}
         </Card>
 
+        {/* Body — current weight, BMI and progress toward the target weight */}
+        {bodyWeight ? (
+          <Card>
+            <Text style={styles.cardLabel}>BODY</Text>
+            <View style={styles.bodyRow}>
+              <View style={styles.bodyStat}>
+                <Text style={styles.bodyValue}>{formatWeight(bodyWeight)}<Text style={styles.bodyUnit}> {unit}</Text></Text>
+                <Text style={styles.bodyStatLabel}>CURRENT</Text>
+              </View>
+              {bmiValue !== null ? (
+                <View style={styles.bodyStat}>
+                  <Text style={styles.bodyValue}>{bmiValue.toFixed(1)}</Text>
+                  <Text style={styles.bodyStatLabel}>BMI · {bmiLabel(bmiValue).toUpperCase()}</Text>
+                </View>
+              ) : null}
+            </View>
+            {target ? (
+              <Text style={styles.bodyTarget}>
+                {target.direction === 'reached'
+                  ? '🎯 You’re at your target weight.'
+                  : `${formatWeight(target.delta)} ${unit} to ${target.direction} to reach your target.`}
+              </Text>
+            ) : (
+              <Text style={styles.bodyTarget}>Set a target weight in Settings to track progress here.</Text>
+            )}
+          </Card>
+        ) : null}
+
         {/* Most improved — wide editorial card */}
         <Card>
           <Text style={styles.cardLabel}>MOST IMPROVED LIFT</Text>
@@ -173,6 +251,20 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
         {/* Muscle focus — 6x7 weekly block grid */}
         <View style={styles.section}>
           <SectionHeader title="Muscle Focus" subtitle="Groups trained by day · this week" />
+          {focus ? (
+            <View style={[styles.focusNudge, focus.trainedThisWeek ? styles.focusNudgeOk : styles.focusNudgeWarn]}>
+              <Ionicons
+                name={focus.trainedThisWeek ? 'checkmark-circle' : 'alert-circle'}
+                size={15}
+                color={focus.trainedThisWeek ? colors.primary : colors.text}
+              />
+              <Text style={styles.focusNudgeText}>
+                {focus.trainedThisWeek
+                  ? `Focus on track — ${focus.group} trained this week.`
+                  : `Your focus is ${focus.group} — not trained yet this week.`}
+              </Text>
+            </View>
+          ) : null}
           <Card>
             {trainedThisWeek ? (
               <>
@@ -220,12 +312,15 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
                 <View style={styles.targetCueRow}>
                   <Ionicons name="arrow-up-circle" size={16} color={colors.primary} />
                   <Text style={styles.targetCue}>
-                    Try +{formatWeight(m.target.increment)}kg next time
+                    Try +{formatWeight(targetIncrement)}kg next time
                   </Text>
                 </View>
                 <Text style={styles.targetMeta}>
                   Last top set · {formatWeight(m.target.topWeight)}kg × {m.target.reps} reps
                 </Text>
+                {reps ? (
+                  <Text style={styles.targetGuidance}>{reps.note}</Text>
+                ) : null}
               </>
             ) : (
               <Text style={styles.improvedLine}>
@@ -292,8 +387,50 @@ const styles = StyleSheet.create({
   subtitle: { color: colors.textDim, fontFamily: family.body, fontSize: font.body, marginTop: spacing.md, lineHeight: 21 },
 
   ctas: { gap: spacing.sm },
+  flex: { flex: 1 },
 
   cardLabel: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 1.6 },
+
+  // Train next
+  trainNext: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  trainNextPressed: { backgroundColor: colors.card2 },
+  trainNextIcon: { width: 36, height: 36, borderRadius: radius.sm, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  trainNextLabel: { color: colors.primary, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 1.2 },
+  trainNextName: { ...displayText(font.h3, 0.5), color: colors.text, marginTop: 1 },
+  trainNextGroups: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 0.8, marginTop: 2 },
+
+  // Body card
+  bodyRow: { flexDirection: 'row', gap: spacing.xl, marginTop: spacing.sm },
+  bodyStat: {},
+  bodyValue: { ...displayText(font.h1), color: colors.text },
+  bodyUnit: { fontFamily: family.medium, fontSize: font.label, color: colors.textDim },
+  bodyStatLabel: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 1, marginTop: 2 },
+  bodyTarget: { color: colors.textDim, fontFamily: family.body, fontSize: font.small, marginTop: spacing.md, lineHeight: 19 },
+
+  // Focus nudge
+  focusNudge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  focusNudgeOk: { borderColor: colors.primary, backgroundColor: colors.primaryDim },
+  focusNudgeWarn: { borderColor: colors.border, backgroundColor: colors.card },
+  focusNudgeText: { flex: 1, color: colors.text, fontFamily: family.medium, fontSize: font.small },
 
   // Feature card
   feature: { minHeight: 150 },
@@ -330,4 +467,5 @@ const styles = StyleSheet.create({
   targetCueRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xs },
   targetCue: { color: colors.primary, fontFamily: family.semibold, fontSize: font.body, letterSpacing: 0.3 },
   targetMeta: { color: colors.textDim, fontFamily: family.body, fontSize: font.small, marginTop: spacing.sm },
+  targetGuidance: { color: colors.textFaint, fontFamily: family.body, fontSize: font.small, marginTop: spacing.xs, lineHeight: 18 },
 });
