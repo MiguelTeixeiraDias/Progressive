@@ -36,10 +36,16 @@ export function registerPWA(): void {
  * We deliberately do NOT use `viewport-fit=cover`: on iOS it extends the layout
  * into the bottom safe area, and after the keyboard dismisses that inset isn't
  * always reclaimed — leaving a stubborn blank band below the tab bar.
+ *
+ * `maximum-scale=1` caps zoom so the page can't scale up. Together with the
+ * 16px input font in injectBaseStyles it stops iOS Safari from auto-zooming when
+ * a text field is focused — that zoom was shifting the layout and pushing the
+ * tab bar out of view.
  * Unlike ensureMeta, this replaces the existing tag rather than skipping it.
  */
 function setViewport(): void {
-  const content = 'width=device-width, initial-scale=1, interactive-widget=resizes-content';
+  const content =
+    'width=device-width, initial-scale=1, maximum-scale=1, interactive-widget=resizes-content';
   let meta = document.head.querySelector('meta[name="viewport"]') as HTMLMetaElement | null;
   if (!meta) {
     meta = document.createElement('meta');
@@ -73,6 +79,10 @@ function injectBaseStyles(): void {
       background-color: #0B0F14;
     }
     body { overflow: hidden; overscroll-behavior: none; }
+    /* iOS Safari auto-zooms into any field with a sub-16px font on focus, which
+       shifts the layout and pushes the tab bar off-screen. Force >=16px on web
+       (overrides react-native-web's smaller inline/atomic sizes) to prevent it. */
+    input, textarea, select { font-size: 16px !important; }
   `;
   document.head.appendChild(style);
 }
