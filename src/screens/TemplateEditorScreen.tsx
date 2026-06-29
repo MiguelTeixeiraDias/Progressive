@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useMemo, useState } from 'react';
 import {
-  Alert,
   FlatList,
+  Modal,
   Pressable,
   StyleSheet,
   Text,
@@ -31,6 +31,7 @@ export default function TemplateEditorScreen({ route, navigation }: RootStackScr
   const [selected, setSelected] = useState<TemplateExercise[]>(editing?.exercises ?? []);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<MuscleFilter>('All');
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const isSelected = (id: string) => selected.some((p) => p.exerciseId === id);
 
@@ -62,19 +63,11 @@ export default function TemplateEditorScreen({ route, navigation }: RootStackScr
     navigation.goBack();
   };
 
-  const onDelete = () => {
+  const onConfirmDelete = () => {
     if (!editing) return;
-    Alert.alert('Delete template?', `“${editing.name}” will be removed.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => {
-          deleteTemplate(editing.id);
-          navigation.goBack();
-        },
-      },
-    ]);
+    setConfirmDelete(false);
+    deleteTemplate(editing.id);
+    navigation.goBack();
   };
 
   const header = (
@@ -157,7 +150,7 @@ export default function TemplateEditorScreen({ route, navigation }: RootStackScr
 
       <View style={styles.footer}>
         {editing ? (
-          <PrimaryButton title="Delete" icon="trash-outline" variant="danger" size="lg" onPress={onDelete} />
+          <PrimaryButton title="Delete" icon="trash-outline" variant="danger" size="lg" onPress={() => setConfirmDelete(true)} />
         ) : null}
         <PrimaryButton
           title={editing ? 'Save Changes' : 'Save Template'}
@@ -167,12 +160,28 @@ export default function TemplateEditorScreen({ route, navigation }: RootStackScr
           style={styles.saveBtn}
         />
       </View>
+
+      {/* Confirm before deleting — a custom modal, since RN's Alert is a no-op on web. */}
+      <Modal visible={confirmDelete} transparent animationType="fade" onRequestClose={() => setConfirmDelete(false)}>
+        <Pressable style={styles.confirmBackdrop} onPress={() => setConfirmDelete(false)}>
+          <Pressable style={styles.confirmDialog} onPress={() => {}}>
+            <Text style={styles.confirmKicker}>DELETE TEMPLATE</Text>
+            <Text style={styles.confirmName}>{(editing?.name ?? '').toUpperCase()}</Text>
+            <Text style={styles.confirmCopy}>This template will be removed. This can't be undone.</Text>
+            <View style={styles.confirmActions}>
+              <PrimaryButton title="Cancel" variant="secondary" size="md" onPress={() => setConfirmDelete(false)} style={styles.flex} />
+              <PrimaryButton title="Delete" variant="danger" size="md" onPress={onConfirmDelete} style={styles.flex} />
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
+  flex: { flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -230,4 +239,19 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bgElevated,
   },
   saveBtn: { flex: 1 },
+
+  // Confirm-delete dialog
+  confirmBackdrop: { flex: 1, backgroundColor: colors.overlay, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl },
+  confirmDialog: {
+    width: '100%',
+    backgroundColor: colors.bgElevated,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.xl,
+  },
+  confirmKicker: { color: colors.primary, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 2 },
+  confirmName: { color: colors.text, fontFamily: family.display, fontSize: font.h1, lineHeight: Math.ceil(font.h1 * 1.15), letterSpacing: 0.5, includeFontPadding: false, marginTop: 4 },
+  confirmCopy: { color: colors.textDim, fontFamily: family.body, fontSize: font.body, lineHeight: 21, marginTop: spacing.lg },
+  confirmActions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.xl },
 });

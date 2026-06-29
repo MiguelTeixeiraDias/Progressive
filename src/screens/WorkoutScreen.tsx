@@ -1,7 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert,
   Animated,
   KeyboardAvoidingView,
   Modal,
@@ -74,6 +73,7 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
   }, [workouts, active?.exercises]);
 
   const [confirmTpl, setConfirmTpl] = useState<WorkoutTemplate | null>(null);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
 
   const [toast, setToast] = useState<{ text: string; accent: string } | null>(null);
   const toastOpacity = useRef(new Animated.Value(0)).current;
@@ -221,22 +221,15 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
 
   const handleFinish = () => {
     if (!nameValid) {
-      Alert.alert('Name your workout', 'Name your workout before finishing.');
+      showToast('NAME YOUR WORKOUT FIRST', colors.primary);
       return;
     }
     if (doneSets === 0) {
-      Alert.alert('Nothing logged yet', 'Complete at least one exercise before finishing.');
+      showToast('LOG AT LEAST ONE EXERCISE', colors.primary);
       return;
     }
     const summary = finishWorkout();
     if (summary) navigation.navigate('WorkoutComplete', { summary });
-  };
-
-  const handleDiscard = () => {
-    Alert.alert('Discard workout?', 'This will delete your current session.', [
-      { text: 'Keep training', style: 'cancel' },
-      { text: 'Discard', style: 'destructive', onPress: () => discardWorkout() },
-    ]);
   };
 
   return (
@@ -255,7 +248,7 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
             />
             {!nameValid ? <Text style={styles.nameRequired}>NAME REQUIRED BEFORE FINISHING</Text> : null}
           </View>
-          <Pressable onPress={handleDiscard} hitSlop={8} style={styles.closeBtn}>
+          <Pressable onPress={() => setConfirmDiscard(true)} hitSlop={8} style={styles.closeBtn}>
             <Ionicons name="close" size={20} color={colors.textDim} />
           </Pressable>
         </View>
@@ -312,6 +305,30 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
           />
         </View>
       </KeyboardAvoidingView>
+
+      {/* Confirm before discarding — a custom modal, since RN's Alert is a no-op on web. */}
+      <Modal visible={confirmDiscard} transparent animationType="fade" onRequestClose={() => setConfirmDiscard(false)}>
+        <Pressable style={styles.confirmBackdrop} onPress={() => setConfirmDiscard(false)}>
+          <Pressable style={styles.confirmDialog} onPress={() => {}}>
+            <Text style={styles.confirmKicker}>DISCARD WORKOUT</Text>
+            <Text style={styles.confirmName}>{active.name.trim() ? active.name.toUpperCase() : 'CURRENT SESSION'}</Text>
+            <Text style={styles.confirmCopy}>This will delete your current session. This can't be undone.</Text>
+            <View style={styles.confirmActions}>
+              <PrimaryButton title="Keep training" variant="secondary" size="md" onPress={() => setConfirmDiscard(false)} style={styles.flex} />
+              <PrimaryButton
+                title="Discard"
+                variant="danger"
+                size="md"
+                onPress={() => {
+                  setConfirmDiscard(false);
+                  discardWorkout();
+                }}
+                style={styles.flex}
+              />
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
