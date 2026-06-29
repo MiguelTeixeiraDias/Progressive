@@ -6,6 +6,7 @@ import { colors, radius, spacing } from '../theme';
 interface CardProps {
   children?: React.ReactNode;
   onPress?: () => void;
+  onLongPress?: () => void;
   variant?: 'card' | 'card2';
   style?: StyleProp<ViewStyle>;
   noPadding?: boolean;
@@ -15,6 +16,7 @@ interface CardProps {
 export default function Card({
   children,
   onPress,
+  onLongPress,
   variant = 'card',
   style,
   noPadding = false,
@@ -28,10 +30,11 @@ export default function Card({
     style,
   ];
 
-  if (onPress) {
+  if (onPress || onLongPress) {
     return (
       <Pressable
         onPress={onPress}
+        onLongPress={onLongPress}
         style={({ pressed }) => [base, pressed && styles.pressed]}
       >
         {children}

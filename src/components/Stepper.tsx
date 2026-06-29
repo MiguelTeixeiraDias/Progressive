@@ -38,7 +38,7 @@ export default function Stepper({
   const clamp = (v: number) => Math.max(min, Math.min(max, v));
   const commit = (v: number) => onChange(clamp(decimal ? Math.round(v * 100) / 100 : Math.round(v)));
 
-  const btn = size === 'sm' ? 34 : 40;
+  const btn = size === 'sm' ? 36 : 40;
   const valueFont = size === 'sm' ? 22 : 26;
 
   return (
@@ -79,7 +79,9 @@ export default function Stepper({
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center' },
+  // Fill the parent field; buttons stay fixed at the edges while the value flexes
+  // in the middle, so the stepper never overflows or overlaps on narrow screens.
+  row: { flexDirection: 'row', alignItems: 'center', alignSelf: 'stretch', justifyContent: 'space-between' },
   disabled: { opacity: 0.45 },
   btn: {
     borderRadius: radius.sm,
@@ -91,7 +93,8 @@ const styles = StyleSheet.create({
   },
   pressed: { transform: [{ translateY: 1 }], opacity: 0.8 },
   value: {
-    minWidth: 54,
+    flex: 1,
+    minWidth: 0,
     textAlign: 'center',
     color: colors.text,
     fontFamily: family.display,
