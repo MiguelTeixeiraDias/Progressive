@@ -8,12 +8,14 @@ import {
   deleteTemplate as deleteTemplateRemote,
   fireAndForget,
   loadUserData,
+  saveBodyWeight,
   saveCustomExercise,
   saveSettings,
   saveTemplate,
   saveWorkout,
 } from '../lib/sync';
 import {
+  BodyWeightEntry,
   Exercise,
   MuscleGroup,
   NewPR,
@@ -25,6 +27,7 @@ import {
   WorkoutSummary,
   WorkoutTemplate,
 } from '../types';
+import { dayKey } from '../utils/date';
 import { uid } from '../utils/id';
 import { computePRs, epley1RM, lastPerformance, lastWorkout } from '../utils/stats';
 
@@ -35,6 +38,7 @@ interface StoreState {
   templates: WorkoutTemplate[]; // reusable plans, newest first
   activeWorkout: WorkoutSession | null;
   settings: Settings;
+  bodyWeights: BodyWeightEntry[]; // dated weigh-ins, oldest first
   hasSeeded: boolean;
 
   // runtime only
@@ -54,6 +58,9 @@ interface StoreState {
   addExercise: (name: string, muscleGroup: MuscleGroup) => Exercise;
   /** Remove a user-created exercise from the library (no-op for built-ins). */
   deleteExercise: (id: string) => void;
+
+  /** Record today's bodyweight (one entry per day; re-logging overwrites). */
+  logBodyWeight: (weight: number) => void;
 
   // templates
   addTemplate: (name: string, exercises: TemplateExercise[]) => WorkoutTemplate;
@@ -145,6 +152,7 @@ export const useStore = create<StoreState>()(
       templates: [],
       activeWorkout: null,
       settings: DEFAULT_SETTINGS,
+      bodyWeights: [],
       hasSeeded: false,
       hydrated: false,
       userId: null,
@@ -158,6 +166,7 @@ export const useStore = create<StoreState>()(
         const s = state.settings ?? DEFAULT_SETTINGS;
         set({
           templates: state.templates ?? [],
+          bodyWeights: state.bodyWeights ?? [],
           settings: {
             ...DEFAULT_SETTINGS,
             ...s,
@@ -183,6 +192,7 @@ export const useStore = create<StoreState>()(
           workouts: data.workouts,
           templates: data.templates,
           settings,
+          bodyWeights: data.bodyWeights,
           activeWorkout: get().userId === userId ? get().activeWorkout : null,
         });
       },
@@ -195,6 +205,7 @@ export const useStore = create<StoreState>()(
           templates: [],
           activeWorkout: null,
           settings: DEFAULT_SETTINGS,
+          bodyWeights: [],
         }),
 
       factoryReset: () =>
@@ -204,6 +215,7 @@ export const useStore = create<StoreState>()(
           templates: [],
           activeWorkout: null,
           settings: DEFAULT_SETTINGS,
+          bodyWeights: [],
           hasSeeded: true,
         }),
 
@@ -296,6 +308,24 @@ export const useStore = create<StoreState>()(
           if (isCustom) fireAndForget('deleteCustomExercise', deleteCustomExerciseRemote(id));
           if (settingsChanged) fireAndForget('saveSettings', saveSettings(userId, get().settings));
         }
+      },
+
+      logBodyWeight: (weight) => {
+        if (!Number.isFinite(weight) || weight <= 0) return;
+        const today = dayKey(Date.now());
+        const existing = get().bodyWeights.find((e) => e.date === today);
+        const entry: BodyWeightEntry = existing
+          ? { ...existing, weight, loggedAt: Date.now() }
+          : { id: uid('bw'), date: today, weight, loggedAt: Date.now() };
+
+        set((s) => ({
+          bodyWeights: existing
+            ? s.bodyWeights.map((e) => (e.date === today ? entry : e))
+            : [...s.bodyWeights, entry].sort((a, b) => a.date.localeCompare(b.date)),
+        }));
+
+        const userId = get().userId;
+        if (userId) fireAndForget('saveBodyWeight', saveBodyWeight(userId, entry));
       },
 
       startWorkout: (name) => {
@@ -577,6 +607,7 @@ export const useStore = create<StoreState>()(
         templates: s.templates,
         activeWorkout: s.activeWorkout,
         settings: s.settings,
+        bodyWeights: s.bodyWeights,
         hasSeeded: s.hasSeeded,
       }),
       onRehydrateStorage: () => (state) => {

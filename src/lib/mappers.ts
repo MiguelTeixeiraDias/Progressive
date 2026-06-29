@@ -3,6 +3,7 @@
 // loader and the write-through paths can share them.
 
 import {
+  BodyWeightEntry,
   Exercise,
   MuscleGroup,
   SetEntry,
@@ -93,6 +94,21 @@ const mg = (s: string): MuscleGroup => s as MuscleGroup;
 
 export function rowToExercise(r: ExerciseRow): Exercise {
   return { id: r.id, name: r.name, muscleGroup: mg(r.muscle_group), isCustom: r.is_custom };
+}
+
+export interface BodyWeightRow {
+  id: string;
+  date: string;
+  weight: number;
+  logged_at: number;
+}
+
+export function rowToBodyWeight(r: BodyWeightRow): BodyWeightEntry {
+  return { id: r.id, date: r.date, weight: r.weight, loggedAt: r.logged_at };
+}
+
+export function bodyWeightToRow(userId: string, e: BodyWeightEntry) {
+  return { id: e.id, user_id: userId, date: e.date, weight: e.weight, logged_at: e.loggedAt };
 }
 
 export function rowsToTemplate(t: TemplateRow, exercises: TemplateExerciseRow[]): WorkoutTemplate {

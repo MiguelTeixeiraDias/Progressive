@@ -30,6 +30,7 @@ import { useStore } from '../store/useStore';
 import { Exercise } from '../types';
 import { colors, family, font, radius, spacing } from '../theme';
 import { withAlpha } from '../utils/color';
+import { repGuidance } from '../utils/coaching';
 import { formatWeight, signedPct } from '../utils/format';
 import {
   computePRs,
@@ -51,6 +52,7 @@ export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'
   const workouts = useStore((s) => s.workouts);
   const settings = useStore((s) => s.settings);
   const exercises = useStore((s) => s.exercises);
+  const bodyWeights = useStore((s) => s.bodyWeights);
   const updateSettings = useStore((s) => s.updateSettings);
 
   const data = useMemo(() => {
@@ -73,6 +75,27 @@ export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'
   const scoreColor = data.score >= 60 ? colors.primary : colors.text;
   const paceColor = data.pace === null ? colors.text : data.pace >= 0 ? colors.primary : colors.text;
   const maxFreq = Math.max(1, ...data.muscleFreq.map((m) => m.value));
+
+  // Goal-tailored coaching line prepended to the overload insights.
+  const focusGroup = settings.goals.focusMuscleGroup;
+  const goalLine = (() => {
+    const g = settings.goals.primaryFitnessGoal;
+    if (!g) return null;
+    const rg = repGuidance(g);
+    return rg ? `Goal: ${g} — ${rg.note}` : `Goal: ${g}.`;
+  })();
+  const insights = goalLine ? [goalLine, ...data.insights] : data.insights;
+
+  // Bodyweight trend (last 14 weigh-ins, oldest first).
+  const unit = settings.unit.toUpperCase();
+  const bwSeries = bodyWeights.slice(-14);
+  const bwValues = bwSeries.map((e) => e.weight);
+  const bwMin = bwValues.length ? Math.min(...bwValues) : 0;
+  const bwMax = bwValues.length ? Math.max(...bwValues) : 0;
+  const bwCurrent = bodyWeights.length ? bodyWeights[bodyWeights.length - 1].weight : null;
+  const bwStart = bodyWeights.length ? bodyWeights[0].weight : null;
+  const bwDelta = bwCurrent !== null && bwStart !== null ? bwCurrent - bwStart : null;
+  const targetWeight = settings.goals.targetBodyWeight;
 
   // Key lifts (editable from the heading) — 3–6 chosen exercises.
   const featured = settings.featuredExercises.slice(0, MAX_KEY_LIFTS);
@@ -213,7 +236,7 @@ export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'
             </View>
             <ProgressBar progress={data.score / 100} color={scoreColor} height={10} />
             <View style={styles.insights}>
-              {data.insights.map((line, i) => (
+              {insights.map((line, i) => (
                 <View key={i} style={styles.insightRow}>
                   <View style={styles.insightTick} />
                   <Text style={styles.insightText}>{line}</Text>
@@ -259,14 +282,79 @@ export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'
           <View style={styles.card}>
             {data.muscleFreq.map((row) => {
               const isTop = row.value === maxFreq && row.value > 0;
+              const isFocus = row.group === focusGroup;
               return (
-                <View key={row.group} style={styles.muscleRow}>
-                  <Text style={styles.muscleName}>{row.group.toUpperCase()}</Text>
-                  <ProgressBar progress={row.value / maxFreq} color={isTop ? colors.primary : withAlpha(colors.text, 0.5)} height={6} style={styles.muscleBar} />
-                  <Text style={styles.muscleValue}>{row.value}×</Text>
+                <View key={row.group} style={[styles.muscleRow, isFocus && styles.muscleRowFocus]}>
+                  <Text style={[styles.muscleName, isFocus && styles.muscleNameFocus]} numberOfLines={1}>
+                    {row.group.toUpperCase()}
+                    {isFocus ? '  ★' : ''}
+                  </Text>
+                  <ProgressBar progress={row.value / maxFreq} color={isFocus || isTop ? colors.primary : withAlpha(colors.text, 0.5)} height={6} style={styles.muscleBar} />
+                  <Text style={[styles.muscleValue, isFocus && { color: colors.primary }]}>{row.value}×</Text>
                 </View>
               );
             })}
+          </View>
+          {focusGroup ? <Text style={styles.muscleFocusNote}>★ Your focus muscle group.</Text> : null}
+        </View>
+
+        {/* Bodyweight trend */}
+        <View style={styles.section}>
+          <SectionHeader title="Bodyweight" subtitle="Your weigh-ins over time" />
+          <View style={styles.card}>
+            {bodyWeights.length === 0 ? (
+              <EmptyState
+                icon="body-outline"
+                title="No weigh-ins yet"
+                message="Update your current weight in Settings and your trend builds here."
+              />
+            ) : (
+              <>
+                <View style={styles.bwStatsRow}>
+                  <View>
+                    <Text style={styles.bwValue}>
+                      {formatWeight(bwCurrent ?? 0)}<Text style={styles.bwUnit}> {unit}</Text>
+                    </Text>
+                    <Text style={styles.bwStatLabel}>CURRENT</Text>
+                  </View>
+                  {bwDelta !== null && Math.abs(bwDelta) >= 0.1 ? (
+                    <View>
+                      <Text style={[styles.bwValue, { color: colors.primary }]}>
+                        {bwDelta > 0 ? '+' : '−'}{formatWeight(Math.abs(bwDelta))}<Text style={styles.bwUnit}> {unit}</Text>
+                      </Text>
+                      <Text style={styles.bwStatLabel}>SINCE FIRST</Text>
+                    </View>
+                  ) : null}
+                  {targetWeight ? (
+                    <View>
+                      <Text style={styles.bwValue}>{formatWeight(targetWeight)}<Text style={styles.bwUnit}> {unit}</Text></Text>
+                      <Text style={styles.bwStatLabel}>TARGET</Text>
+                    </View>
+                  ) : null}
+                </View>
+                {bwSeries.length >= 2 ? (
+                  <View style={styles.bwChart}>
+                    {bwSeries.map((e, i) => {
+                      const norm = bwMax > bwMin ? (e.weight - bwMin) / (bwMax - bwMin) : 1;
+                      const h = 14 + norm * 58;
+                      const last = i === bwSeries.length - 1;
+                      return (
+                        <View key={e.id} style={styles.bwCol}>
+                          <View
+                            style={[
+                              styles.bwBar,
+                              { height: h, backgroundColor: last ? colors.primary : withAlpha(colors.text, 0.18) },
+                            ]}
+                          />
+                        </View>
+                      );
+                    })}
+                  </View>
+                ) : (
+                  <Text style={styles.muscleFocusNote}>Log again on another day to see your trend.</Text>
+                )}
+              </>
+            )}
           </View>
         </View>
 
@@ -412,9 +500,21 @@ const styles = StyleSheet.create({
 
   // Muscle frequency
   muscleRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 7 },
-  muscleName: { color: colors.text, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 0.8, width: 80 },
+  muscleRowFocus: { backgroundColor: colors.primaryDim, borderRadius: radius.sm, marginHorizontal: -spacing.sm, paddingHorizontal: spacing.sm },
+  muscleName: { color: colors.text, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 0.8, width: 92 },
+  muscleNameFocus: { color: colors.primary, fontFamily: family.semibold },
   muscleBar: { flex: 1, marginHorizontal: spacing.md },
   muscleValue: { color: colors.textDim, fontFamily: family.display, fontSize: font.lg, width: 36, textAlign: 'right', includeFontPadding: false },
+  muscleFocusNote: { color: colors.textFaint, fontFamily: family.body, fontSize: font.small, marginTop: spacing.sm },
+
+  // Bodyweight
+  bwStatsRow: { flexDirection: 'row', gap: spacing.xl, marginBottom: spacing.lg },
+  bwValue: { color: colors.text, fontFamily: family.display, fontSize: font.h2, lineHeight: Math.ceil(font.h2 * 1.15), includeFontPadding: false },
+  bwUnit: { color: colors.textDim, fontFamily: family.medium, fontSize: font.label },
+  bwStatLabel: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 1, marginTop: 2 },
+  bwChart: { flexDirection: 'row', alignItems: 'flex-end', height: 76, gap: 4 },
+  bwCol: { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
+  bwBar: { width: '100%', borderRadius: radius.xs },
 
   // Personal records
   prWrap: { position: 'relative' },

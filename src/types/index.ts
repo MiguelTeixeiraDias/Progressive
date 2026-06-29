@@ -131,6 +131,14 @@ export interface BodyStats {
   height?: number;
 }
 
+/** A dated bodyweight measurement (stored in the user's unit). One per day. */
+export interface BodyWeightEntry {
+  id: string;
+  date: string; // yyyy-mm-dd (local day key)
+  weight: number;
+  loggedAt: number; // epoch ms
+}
+
 export interface Settings {
   userName: string;
   weeklyGoal: number; // target workouts per week (canonical weekly target)

@@ -4,12 +4,14 @@
 // `auth.uid() = user_id` on insert.
 
 import {
+  BodyWeightEntry,
   Exercise,
   Settings,
   WorkoutSession,
   WorkoutTemplate,
 } from '../types';
 import {
+  BodyWeightRow,
   ExerciseRow,
   ProfileRow,
   SetRow,
@@ -17,7 +19,9 @@ import {
   TemplateRow,
   WorkoutExerciseRow,
   WorkoutRow,
+  bodyWeightToRow,
   exerciseToRow,
+  rowToBodyWeight,
   rowToExercise,
   rowToSettings,
   rowsToTemplate,
@@ -36,6 +40,7 @@ export interface UserData {
   customExercises: Exercise[];
   templates: WorkoutTemplate[];
   workouts: WorkoutSession[]; // newest first
+  bodyWeights: BodyWeightEntry[]; // oldest first
 }
 
 function groupBy<T, K>(items: T[], key: (t: T) => K): Map<K, T[]> {
@@ -51,7 +56,7 @@ function groupBy<T, K>(items: T[], key: (t: T) => K): Map<K, T[]> {
 
 /** Fetch everything for a signed-in user and assemble it into domain objects. */
 export async function loadUserData(userId: string): Promise<UserData> {
-  const [profileRes, exercisesRes, templatesRes, templateExRes, workoutsRes, workoutExRes, setsRes] =
+  const [profileRes, exercisesRes, templatesRes, templateExRes, workoutsRes, workoutExRes, setsRes, bodyWeightsRes] =
     await Promise.all([
       supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
       supabase.from('exercises').select('*').eq('user_id', userId),
@@ -60,6 +65,7 @@ export async function loadUserData(userId: string): Promise<UserData> {
       supabase.from('workouts').select('*').eq('user_id', userId).order('started_at', { ascending: false }),
       supabase.from('workout_exercises').select('*').eq('user_id', userId),
       supabase.from('sets').select('*').eq('user_id', userId),
+      supabase.from('body_weights').select('*').eq('user_id', userId).order('date', { ascending: true }),
     ]);
 
   const firstError =
@@ -69,7 +75,8 @@ export async function loadUserData(userId: string): Promise<UserData> {
     templateExRes.error ||
     workoutsRes.error ||
     workoutExRes.error ||
-    setsRes.error;
+    setsRes.error ||
+    bodyWeightsRes.error;
   if (firstError) throw firstError;
 
   const templateExByTemplate = groupBy(
@@ -91,6 +98,7 @@ export async function loadUserData(userId: string): Promise<UserData> {
     workouts: ((workoutsRes.data ?? []) as WorkoutRow[]).map((w) =>
       rowsToWorkout(w, workoutExByWorkout.get(w.id) ?? [], setsByExercise),
     ),
+    bodyWeights: ((bodyWeightsRes.data ?? []) as BodyWeightRow[]).map(rowToBodyWeight),
   };
 }
 
@@ -110,6 +118,14 @@ export async function saveCustomExercise(userId: string, exercise: Exercise): Pr
 
 export async function deleteCustomExercise(exerciseId: string): Promise<void> {
   const { error } = await supabase.from('exercises').delete().eq('id', exerciseId);
+  if (error) throw error;
+}
+
+export async function saveBodyWeight(userId: string, entry: BodyWeightEntry): Promise<void> {
+  // One row per day: upsert on (user_id, date) so re-logging today overwrites.
+  const { error } = await supabase
+    .from('body_weights')
+    .upsert(bodyWeightToRow(userId, entry), { onConflict: 'user_id,date' });
   if (error) throw error;
 }
 
