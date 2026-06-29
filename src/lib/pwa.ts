@@ -50,14 +50,17 @@ function setViewport(): void {
 }
 
 /**
- * Pin the page to the dynamic viewport and paint everything behind the app the
- * app's dark background. The document's default background is white, so any gap
- * the browser leaves below the app shell (e.g. a viewport that doesn't fully
- * snap back after the keyboard closes) shows through as a white band. Using
- * `100dvh` makes the root track the *current* viewport — including keyboard and
- * browser-toolbar changes — and `overflow: hidden` stops the document itself
- * from scrolling (our own ScrollViews handle scrolling), so no blank strip can
- * be revealed below the tab bar.
+ * Paint everything behind the app the app's dark background. The document's
+ * default background is white, so any gap the browser leaves below the app shell
+ * shows through as a white band — colouring the document dark makes such a gap
+ * invisible against the UI.
+ *
+ * The root uses `height: 100%` (not `100dvh`): with `interactive-widget=
+ * resizes-content` the layout viewport already shrinks when the keyboard opens,
+ * so `100%` tracks it and the tab bar stays in view. A fixed `100dvh` fought
+ * that — it kept the shell full-height while the viewport shrank, pushing the
+ * tab bar below the fold. `overflow: hidden` keeps the document itself from
+ * scrolling (our own ScrollViews handle scrolling).
  */
 function injectBaseStyles(): void {
   if (document.getElementById('progressive-base-styles')) return;
@@ -67,7 +70,6 @@ function injectBaseStyles(): void {
     html, body, #root {
       margin: 0;
       height: 100%;
-      min-height: 100dvh;
       background-color: #0B0F14;
     }
     body { overflow: hidden; overscroll-behavior: none; }
