@@ -140,6 +140,12 @@ export interface Settings {
   bodyStats: BodyStats;
   /** Exercise ids pinned to the Progress "key lifts" PR tiles (defaults: squat/bench/deadlift). */
   featuredExercises: string[];
+  /**
+   * Ids of built-in (default) exercises this user has chosen to hide/delete.
+   * Stored per-user (synced in settings) so it never affects anyone else's
+   * library. Custom exercises are deleted outright instead of listed here.
+   */
+  hiddenExerciseIds: string[];
 }
 
 /** Returned by finishWorkout() to power the celebration screen. */
