@@ -36,22 +36,24 @@ export default function TabNavigator() {
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textFaint,
         tabBarShowLabel: true,
+        tabBarLabelPosition: 'below-icon',
         tabBarStyle: {
           backgroundColor: colors.card2,
           borderTopColor: colors.border,
           borderTopWidth: 1,
-          height: 60 + insets.bottom,
-          paddingTop: 8,
-          paddingBottom: insets.bottom > 0 ? insets.bottom : 10,
-          // Inset the row so the tabs pack a little closer together and leave
-          // breathing room at the far left/right edges.
-          paddingHorizontal: spacing.xl,
+          height: 74 + insets.bottom,
+          paddingTop: 10,
+          paddingBottom: insets.bottom > 0 ? insets.bottom : 12,
+          // A little inset for edge breathing room — kept modest so the longest
+          // label ("EXERCISES") isn't clipped.
+          paddingHorizontal: spacing.sm,
         },
         tabBarLabelStyle: {
           fontSize: font.tiny,
           fontFamily: family.medium,
-          letterSpacing: 1,
+          letterSpacing: 0.4,
           textTransform: 'uppercase',
+          marginTop: 2,
         },
         tabBarIcon: ({ focused, color, size }) => (
           <Ionicons
@@ -62,12 +64,12 @@ export default function TabNavigator() {
         ),
       })}
     >
-      <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="Workout" component={WorkoutScreen} />
-      <Tab.Screen name="Exercises" component={ExercisesScreen} />
-      <Tab.Screen name="Progress" component={ProgressScreen} />
+      <Tab.Screen name="Home" component={HomeScreen} options={{ tabBarLabel: 'Home' }} />
+      <Tab.Screen name="Workout" component={WorkoutScreen} options={{ tabBarLabel: 'Workout' }} />
+      <Tab.Screen name="Exercises" component={ExercisesScreen} options={{ tabBarLabel: 'Exercises' }} />
+      <Tab.Screen name="Progress" component={ProgressScreen} options={{ tabBarLabel: 'Progress' }} />
       {/* History tab removed (see import note); Settings takes its place. */}
-      <Tab.Screen name="Settings" component={SettingsScreen} />
+      <Tab.Screen name="Settings" component={SettingsScreen} options={{ tabBarLabel: 'Settings' }} />
     </Tab.Navigator>
   );
 }
