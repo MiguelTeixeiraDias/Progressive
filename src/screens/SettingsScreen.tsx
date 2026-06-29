@@ -169,6 +169,7 @@ function toDraft(s: Settings): Draft {
 export default function SettingsScreen(_: TabScreenProps<'Settings'>) {
   const settings = useStore((s) => s.settings);
   const updateSettings = useStore((s) => s.updateSettings);
+  const logBodyWeight = useStore((s) => s.logBodyWeight);
   const { user, signOut } = useAuth();
 
   // Edits live in a local draft and only commit to the store on Save. Resync the
@@ -185,6 +186,7 @@ export default function SettingsScreen(_: TabScreenProps<'Settings'>) {
 
   const onSave = () => {
     const trimmedName = draft.name.trim();
+    const newWeight = parseNum(draft.bodyWeight);
     updateSettings({
       userName: trimmedName || 'Athlete',
       unit: draft.unit,
@@ -198,7 +200,7 @@ export default function SettingsScreen(_: TabScreenProps<'Settings'>) {
       },
       bodyStats: {
         ...settings.bodyStats,
-        currentWeight: parseNum(draft.bodyWeight),
+        currentWeight: newWeight,
         height: parseNum(draft.height),
       },
       goals: {
@@ -208,6 +210,11 @@ export default function SettingsScreen(_: TabScreenProps<'Settings'>) {
         focusMuscleGroup: draft.focusMuscleGroup,
       },
     });
+    // Record a dated weigh-in whenever the current weight changes, so the
+    // Progress bodyweight trend builds up over time.
+    if (newWeight !== undefined && newWeight !== settings.bodyStats.currentWeight) {
+      logBodyWeight(newWeight);
+    }
   };
 
   const onDiscard = () => setDraft(toDraft(settings));
