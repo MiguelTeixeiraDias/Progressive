@@ -12,6 +12,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SectionHeader } from '../components';
+import PrimaryButton from '../components/PrimaryButton';
+import { useAuth } from '../auth/AuthContext';
 import { TabScreenProps } from '../navigation/types';
 import { useStore } from '../store/useStore';
 import {
@@ -66,6 +68,7 @@ function Choice<T extends string>({
 export default function SettingsScreen(_: TabScreenProps<'Settings'>) {
   const settings = useStore((s) => s.settings);
   const updateSettings = useStore((s) => s.updateSettings);
+  const { user, signOut } = useAuth();
 
   // Text/number fields keep local state and commit on blur to avoid persisting
   // on every keystroke; selections (chips/units) commit immediately.
@@ -229,8 +232,21 @@ export default function SettingsScreen(_: TabScreenProps<'Settings'>) {
             </View>
           </View>
 
+          {/* Account — Supabase auth */}
+          <View style={styles.section}>
+            <SectionHeader title="Account" subtitle="Synced to your Progressive account" />
+            <View style={styles.card}>
+              {user?.email ? (
+                <Field label="SIGNED IN AS">
+                  <Text style={styles.accountEmail}>{user.email}</Text>
+                </Field>
+              ) : null}
+              <PrimaryButton title="Sign out" variant="danger" icon="log-out-outline" fullWidth onPress={signOut} />
+            </View>
+          </View>
+
           <Text style={styles.footnote}>
-            Saved on this device. Profile and goals are structured to connect to real accounts and AI coaching later.
+            Your workouts, templates and profile sync to the cloud and load on any device you sign in to.
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -294,5 +310,6 @@ const styles = StyleSheet.create({
   counterSign: { color: colors.text, fontFamily: family.semibold, fontSize: font.h3 },
   counterValue: { color: colors.text, fontFamily: family.display, fontSize: 30, lineHeight: 35, minWidth: 32, textAlign: 'center', includeFontPadding: false },
   counterUnit: { color: colors.textDim, fontFamily: family.body, fontSize: font.small, marginLeft: spacing.sm },
+  accountEmail: { color: colors.text, fontFamily: family.medium, fontSize: font.body },
   footnote: { color: colors.textFaint, fontFamily: family.body, fontSize: font.small, lineHeight: 18 },
 });

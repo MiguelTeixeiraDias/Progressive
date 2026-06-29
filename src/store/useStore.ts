@@ -3,7 +3,15 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { DEFAULT_EXERCISES } from '../data/exercises';
-import { generateSampleWorkouts } from '../data/sampleWorkouts';
+import {
+  deleteTemplate as deleteTemplateRemote,
+  fireAndForget,
+  loadUserData,
+  saveCustomExercise,
+  saveSettings,
+  saveTemplate,
+  saveWorkout,
+} from '../lib/sync';
 import {
   Exercise,
   MuscleGroup,
@@ -30,10 +38,16 @@ interface StoreState {
 
   // runtime only
   hydrated: boolean;
+  /** Supabase auth user id of the loaded account, or null when signed out. */
+  userId: string | null;
 
   // lifecycle
   finishHydration: () => void;
   factoryReset: () => void;
+  /** Replace local state with the signed-in user's data from Supabase. */
+  loadFromServer: (userId: string) => Promise<void>;
+  /** Clear the in-memory/local cache on sign-out. */
+  resetLocal: () => void;
 
   // library
   addExercise: (name: string, muscleGroup: MuscleGroup) => Exercise;
@@ -122,18 +136,14 @@ export const useStore = create<StoreState>()(
       settings: DEFAULT_SETTINGS,
       hasSeeded: false,
       hydrated: false,
+      userId: null,
 
       finishHydration: () => {
         const state = get();
-        if (!state.hasSeeded) {
-          set({
-            exercises: DEFAULT_EXERCISES,
-            workouts: generateSampleWorkouts(),
-            hasSeeded: true,
-          });
-        }
         // Backfill settings shape for stores persisted before profile/goals/body
         // stats existed, so the Settings screen can read nested fields safely.
+        // Server data (loadFromServer) overwrites this once the user is signed in;
+        // until then the AsyncStorage cache provides instant, offline-first state.
         const s = state.settings ?? DEFAULT_SETTINGS;
         set({
           templates: state.templates ?? [],
@@ -150,10 +160,33 @@ export const useStore = create<StoreState>()(
         });
       },
 
+      loadFromServer: async (userId) => {
+        const data = await loadUserData(userId);
+        set({
+          userId,
+          // Custom (server) exercises first, then the static default library.
+          exercises: [...data.customExercises, ...DEFAULT_EXERCISES],
+          workouts: data.workouts,
+          templates: data.templates,
+          settings: data.settings ?? DEFAULT_SETTINGS,
+          activeWorkout: get().userId === userId ? get().activeWorkout : null,
+        });
+      },
+
+      resetLocal: () =>
+        set({
+          userId: null,
+          exercises: DEFAULT_EXERCISES,
+          workouts: [],
+          templates: [],
+          activeWorkout: null,
+          settings: DEFAULT_SETTINGS,
+        }),
+
       factoryReset: () =>
         set({
           exercises: DEFAULT_EXERCISES,
-          workouts: generateSampleWorkouts(),
+          workouts: [],
           templates: [],
           activeWorkout: null,
           settings: DEFAULT_SETTINGS,
@@ -170,10 +203,12 @@ export const useStore = create<StoreState>()(
           updatedAt: now,
         };
         set((s) => ({ templates: [template, ...s.templates] }));
+        const userId = get().userId;
+        if (userId) fireAndForget('saveTemplate', saveTemplate(userId, template));
         return template;
       },
 
-      updateTemplate: (id, patch) =>
+      updateTemplate: (id, patch) => {
         set((s) => ({
           templates: s.templates.map((t) =>
             t.id === id
@@ -185,13 +220,22 @@ export const useStore = create<StoreState>()(
                 }
               : t,
           ),
-        })),
+        }));
+        const userId = get().userId;
+        const updated = get().templates.find((t) => t.id === id);
+        if (userId && updated) fireAndForget('saveTemplate', saveTemplate(userId, updated));
+      },
 
-      deleteTemplate: (id) =>
-        set((s) => ({ templates: s.templates.filter((t) => t.id !== id) })),
+      deleteTemplate: (id) => {
+        set((s) => ({ templates: s.templates.filter((t) => t.id !== id) }));
+        if (get().userId) fireAndForget('deleteTemplate', deleteTemplateRemote(id));
+      },
 
-      updateSettings: (patch) =>
-        set((s) => ({ settings: { ...s.settings, ...patch } })),
+      updateSettings: (patch) => {
+        set((s) => ({ settings: { ...s.settings, ...patch } }));
+        const userId = get().userId;
+        if (userId) fireAndForget('saveSettings', saveSettings(userId, get().settings));
+      },
 
       addExercise: (name, muscleGroup) => {
         const exercise: Exercise = {
@@ -201,6 +245,8 @@ export const useStore = create<StoreState>()(
           isCustom: true,
         };
         set((s) => ({ exercises: [exercise, ...s.exercises] }));
+        const userId = get().userId;
+        if (userId) fireAndForget('saveCustomExercise', saveCustomExercise(userId, exercise));
         return exercise;
       },
 
@@ -329,6 +375,9 @@ export const useStore = create<StoreState>()(
             : null;
 
         set((s) => ({ workouts: [session, ...s.workouts], activeWorkout: null }));
+
+        const userId = get().userId;
+        if (userId) fireAndForget('saveWorkout', saveWorkout(userId, session));
 
         const muscleGroups = Array.from(
           new Set(exercises.map((e) => e.muscleGroup)),

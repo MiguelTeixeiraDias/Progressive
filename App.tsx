@@ -8,12 +8,14 @@ import {
 import { DarkTheme, NavigationContainer } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { AuthProvider, useAuth } from './src/auth/AuthContext';
 import RootNavigator from './src/navigation/RootNavigator';
+import AuthScreen from './src/screens/AuthScreen';
 import { useStore } from './src/store/useStore';
 import { colors, family, font, spacing } from './src/theme';
 
@@ -43,8 +45,51 @@ function Splash() {
   );
 }
 
-export default function App() {
+function AppContent() {
+  const { session, loading } = useAuth();
   const hydrated = useStore((s) => s.hydrated);
+  const loadFromServer = useStore((s) => s.loadFromServer);
+  const resetLocal = useStore((s) => s.resetLocal);
+
+  // `booted` tracks the per-session data load so we don't flash one account's
+  // cached data while another's is loading (or after sign-out).
+  const [booted, setBooted] = useState(false);
+  const userId = session?.user.id ?? null;
+
+  useEffect(() => {
+    let cancelled = false;
+    setBooted(false);
+    if (!userId) {
+      resetLocal();
+      setBooted(true);
+      return;
+    }
+    loadFromServer(userId)
+      .catch((err) => {
+        // Don't leave another account's data behind if the load fails.
+        console.warn('[app] loadFromServer failed:', err?.message ?? err);
+        resetLocal();
+      })
+      .finally(() => {
+        if (!cancelled) setBooted(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, loadFromServer, resetLocal]);
+
+  const ready = hydrated && !loading && booted;
+
+  if (!ready) return <Splash />;
+  if (!session) return <AuthScreen />;
+  return (
+    <NavigationContainer theme={navTheme}>
+      <RootNavigator />
+    </NavigationContainer>
+  );
+}
+
+export default function App() {
   const [fontsLoaded] = useFonts({
     BebasNeue_400Regular,
     SpaceGrotesk_400Regular,
@@ -53,16 +98,14 @@ export default function App() {
     SpaceGrotesk_700Bold,
   });
 
-  const ready = hydrated && fontsLoaded;
-
   return (
     <GestureHandlerRootView style={styles.flex}>
       <SafeAreaProvider>
         <StatusBar style="light" />
-        {ready ? (
-          <NavigationContainer theme={navTheme}>
-            <RootNavigator />
-          </NavigationContainer>
+        {fontsLoaded ? (
+          <AuthProvider>
+            <AppContent />
+          </AuthProvider>
         ) : (
           <Splash />
         )}

@@ -2,6 +2,10 @@ import 'react-native-gesture-handler';
 import { registerRootComponent } from 'expo';
 
 import App from './App';
+import { registerPWA } from './src/lib/pwa';
+
+// Install the web manifest + service worker (no-op on native).
+registerPWA();
 
 // registerRootComponent calls AppRegistry.registerComponent('main', () => App);
 // It also ensures that whether you load the app in Expo Go or in a native build,
