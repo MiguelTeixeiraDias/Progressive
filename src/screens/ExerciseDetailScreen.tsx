@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useMemo } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EmptyState, KPICard, MuscleGroupBadge, PrimaryButton } from '../components';
@@ -22,6 +22,9 @@ export default function ExerciseDetailScreen({ route, navigation }: RootStackScr
   const workouts = useStore((s) => s.workouts);
   const activeWorkout = useStore((s) => s.activeWorkout);
   const addExerciseToWorkout = useStore((s) => s.addExerciseToWorkout);
+  const deleteExercise = useStore((s) => s.deleteExercise);
+
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const exercise = exercises.find((e) => e.id === exerciseId);
 
@@ -55,6 +58,12 @@ export default function ExerciseDetailScreen({ route, navigation }: RootStackScr
   const addToWorkout = () => {
     addExerciseToWorkout(exercise.id);
     navigation.navigate('Tabs', { screen: 'Workout' });
+  };
+
+  const onConfirmDelete = () => {
+    setConfirmDelete(false);
+    deleteExercise(exercise.id);
+    navigation.goBack();
   };
 
   return (
@@ -142,11 +151,39 @@ export default function ExerciseDetailScreen({ route, navigation }: RootStackScr
         )}
       </ScrollView>
 
-      {activeWorkout && hasData ? (
+      {(activeWorkout && hasData) || exercise.isCustom ? (
         <View style={styles.footer}>
-          <PrimaryButton title="Add to Current Workout" icon="add" onPress={addToWorkout} fullWidth />
+          {activeWorkout && hasData ? (
+            <PrimaryButton title="Add to Current Workout" icon="add" onPress={addToWorkout} fullWidth />
+          ) : null}
+          {exercise.isCustom ? (
+            <PrimaryButton
+              title="Delete Exercise"
+              icon="trash-outline"
+              variant="danger"
+              onPress={() => setConfirmDelete(true)}
+              fullWidth
+            />
+          ) : null}
         </View>
       ) : null}
+
+      {/* Confirm before deleting — a custom modal, since RN's Alert is a no-op on web. */}
+      <Modal visible={confirmDelete} transparent animationType="fade" onRequestClose={() => setConfirmDelete(false)}>
+        <Pressable style={styles.confirmBackdrop} onPress={() => setConfirmDelete(false)}>
+          <Pressable style={styles.confirmDialog} onPress={() => {}}>
+            <Text style={styles.confirmKicker}>DELETE EXERCISE</Text>
+            <Text style={styles.confirmName}>{exercise.name.toUpperCase()}</Text>
+            <Text style={styles.confirmCopy}>
+              This removes it from your exercise library. Past workouts that used it are kept.
+            </Text>
+            <View style={styles.confirmActions}>
+              <PrimaryButton title="Cancel" variant="secondary" size="md" onPress={() => setConfirmDelete(false)} style={styles.flex} />
+              <PrimaryButton title="Delete" variant="danger" size="md" onPress={onConfirmDelete} style={styles.flex} />
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -176,5 +213,21 @@ const styles = StyleSheet.create({
   tlDate: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 0.8 },
   tlWeight: { color: colors.text, fontFamily: family.display, fontSize: 30, lineHeight: 35, includeFontPadding: false, marginTop: 2 },
   tlReps: { color: colors.textFaint, fontFamily: family.body, fontSize: font.small },
-  footer: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.lg, borderTopWidth: 1, borderTopColor: colors.border },
+  footer: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.lg, borderTopWidth: 1, borderTopColor: colors.border, gap: spacing.md },
+  flex: { flex: 1 },
+
+  // Confirm-delete dialog
+  confirmBackdrop: { flex: 1, backgroundColor: colors.overlay, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl },
+  confirmDialog: {
+    width: '100%',
+    backgroundColor: colors.bgElevated,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.xl,
+  },
+  confirmKicker: { color: colors.primary, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 2 },
+  confirmName: { color: colors.text, fontFamily: family.display, fontSize: font.h1, lineHeight: Math.ceil(font.h1 * 1.15), letterSpacing: 0.5, includeFontPadding: false, marginTop: 4 },
+  confirmCopy: { color: colors.textDim, fontFamily: family.body, fontSize: font.body, lineHeight: 21, marginTop: spacing.lg },
+  confirmActions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.xl },
 });
