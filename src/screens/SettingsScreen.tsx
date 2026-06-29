@@ -304,7 +304,7 @@ export default function SettingsScreen(_: TabScreenProps<'Settings'>) {
             <Text style={styles.footerHint}>You have unsaved changes</Text>
             <View style={styles.footerRow}>
               <PrimaryButton title="Discard" variant="ghost" onPress={onDiscard} style={styles.footerBtn} />
-              <PrimaryButton title="Save changes" icon="checkmark" onPress={onSave} style={styles.footerBtn} />
+              <PrimaryButton title="Save" icon="checkmark" onPress={onSave} style={styles.footerBtn} />
             </View>
           </View>
         ) : null}
