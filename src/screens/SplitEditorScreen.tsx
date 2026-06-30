@@ -3,11 +3,11 @@ import React, { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { PrimaryButton } from '../components';
+import { PageWidth, PrimaryButton } from '../components';
 import { RootStackScreenProps } from '../navigation/types';
 import { useStore } from '../store/useStore';
 import { CustomSplit, MUSCLE_GROUPS, MuscleGroup, SplitDayDef } from '../types';
-import { colors, family, font, radius, spacing } from '../theme';
+import { colors, family, font, layout, radius, spacing } from '../theme';
 import { uid } from '../utils/id';
 
 export default function SplitEditorScreen({ route, navigation }: RootStackScreenProps<'SplitEditor'>) {
@@ -73,6 +73,7 @@ export default function SplitEditorScreen({ route, navigation }: RootStackScreen
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      <PageWidth style={styles.page}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>{editing ? 'EDIT SPLIT' : 'NEW SPLIT'}</Text>
         <Pressable onPress={() => navigation.goBack()} hitSlop={8} style={styles.closeBtn}>
@@ -149,12 +150,14 @@ export default function SplitEditorScreen({ route, navigation }: RootStackScreen
           </Pressable>
         </Pressable>
       </Modal>
+      </PageWidth>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
+  safe: { flex: 1, backgroundColor: colors.bg, alignItems: 'center' },
+  page: { flex: 1, width: '100%', maxWidth: layout.formMaxWidth },
   flex: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.md },
   headerTitle: { color: colors.text, fontFamily: family.display, fontSize: font.h2, lineHeight: Math.ceil(font.h2 * 1.15), letterSpacing: 1, includeFontPadding: false },
@@ -201,7 +204,7 @@ const styles = StyleSheet.create({
   },
   saveBtn: { flex: 1 },
   confirmBackdrop: { flex: 1, backgroundColor: colors.overlay, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl },
-  confirmDialog: { width: '100%', backgroundColor: colors.bgElevated, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.xl },
+  confirmDialog: { width: '100%', maxWidth: layout.formMaxWidth, backgroundColor: colors.bgElevated, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.xl },
   confirmKicker: { color: colors.primary, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 2 },
   confirmName: { color: colors.text, fontFamily: family.display, fontSize: font.h1, lineHeight: Math.ceil(font.h1 * 1.15), letterSpacing: 0.5, includeFontPadding: false, marginTop: 4 },
   confirmCopy: { color: colors.textDim, fontFamily: family.body, fontSize: font.body, lineHeight: 21, marginTop: spacing.lg },

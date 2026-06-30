@@ -3,9 +3,9 @@ import React from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { KPICard, MuscleGroupBadge, PersonalBestBadge, PrimaryButton } from '../components';
+import { KPICard, MuscleGroupBadge, PageWidth, PersonalBestBadge, PrimaryButton } from '../components';
 import { RootStackScreenProps } from '../navigation/types';
-import { colors, family, font, radius, spacing } from '../theme';
+import { colors, family, font, layout, radius, spacing } from '../theme';
 import { formatDuration, formatWeight, signedPct } from '../utils/format';
 
 export default function WorkoutCompleteScreen({ route, navigation }: RootStackScreenProps<'WorkoutComplete'>) {
@@ -26,6 +26,7 @@ export default function WorkoutCompleteScreen({ route, navigation }: RootStackSc
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <PageWidth style={styles.page}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.mark}>
           <Ionicons name="checkmark" size={46} color={colors.bg} />
@@ -88,12 +89,14 @@ export default function WorkoutCompleteScreen({ route, navigation }: RootStackSc
       <View style={styles.footer}>
         <PrimaryButton title="Back to Home" icon="home" onPress={goHome} fullWidth />
       </View>
+      </PageWidth>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
+  safe: { flex: 1, backgroundColor: colors.bg, alignItems: 'center' },
+  page: { flex: 1, width: '100%', maxWidth: layout.formMaxWidth },
   content: { paddingHorizontal: spacing.lg, paddingTop: spacing.xxl, paddingBottom: spacing.xl, alignItems: 'center' },
   mark: {
     width: 88,

@@ -2,11 +2,11 @@ import React, { useMemo } from 'react';
 import { SectionList, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { EmptyState, WorkoutSummaryCard } from '../components';
+import { EmptyState, PageWidth, WorkoutSummaryCard } from '../components';
 import { TabScreenProps } from '../navigation/types';
 import { useStore } from '../store/useStore';
 import { WorkoutSession } from '../types';
-import { colors, family, font, spacing } from '../theme';
+import { colors, family, font, layout, spacing } from '../theme';
 import { dayKey, relativeDay } from '../utils/date';
 import { formatVolume } from '../utils/format';
 import { totalVolume, workoutAvgPctIncrease, workoutsThisWeek } from '../utils/stats';
@@ -45,6 +45,7 @@ export default function HistoryScreen({ navigation }: TabScreenProps<'Home'>) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      <PageWidth style={styles.page}>
       <View style={styles.head}>
         <Text style={styles.title}>HISTORY</Text>
         <Text style={styles.subtitle}>EVERY SESSION YOU'VE LOGGED</Text>
@@ -91,12 +92,14 @@ export default function HistoryScreen({ navigation }: TabScreenProps<'Home'>) {
           )}
         />
       )}
+      </PageWidth>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
+  safe: { flex: 1, backgroundColor: colors.bg, alignItems: 'center' },
+  page: { flex: 1, width: '100%', maxWidth: layout.maxContentWidth },
   head: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.md },
   title: { color: colors.text, fontFamily: family.display, fontSize: font.display, lineHeight: Math.ceil(font.display * 1.15), letterSpacing: 1, includeFontPadding: false },
   subtitle: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 1.2, marginTop: 2 },

@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleProp, StyleSheet, Text, View, ViewStyle } from 'react-native';
 
 import { Exercise } from '../types';
 import { colors, family, font, radius, spacing } from '../theme';
@@ -17,6 +17,7 @@ interface ExerciseCardProps {
   onLongPress?: () => void;
   trailingIcon?: IconName;
   trailingAccent?: string;
+  style?: StyleProp<ViewStyle>;
 }
 
 /** Library row: editorial monogram, name, muscle chip + last-performed stat. */
@@ -27,9 +28,10 @@ export default function ExerciseCard({
   onLongPress,
   trailingIcon = 'chevron-forward',
   trailingAccent = colors.textFaint,
+  style,
 }: ExerciseCardProps) {
   return (
-    <Card onPress={onPress} onLongPress={onLongPress} style={styles.card}>
+    <Card onPress={onPress} onLongPress={onLongPress} style={[styles.card, style]}>
       <View style={styles.row}>
         <View style={styles.monogram}>
           <MuscleGroupIcon group={exercise.muscleGroup} size={22} />

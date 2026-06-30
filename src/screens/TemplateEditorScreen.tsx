@@ -11,11 +11,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ExerciseCard, MuscleFilter, MuscleFilterTabs, PrimaryButton, SearchInput } from '../components';
+import { ExerciseCard, MuscleFilter, MuscleFilterTabs, PageWidth, PrimaryButton, SearchInput } from '../components';
 import { RootStackScreenProps } from '../navigation/types';
 import { useStore } from '../store/useStore';
 import { Exercise, TemplateExercise } from '../types';
-import { colors, family, font, radius, spacing } from '../theme';
+import { colors, family, font, layout, radius, spacing } from '../theme';
 
 export default function TemplateEditorScreen({ route, navigation }: RootStackScreenProps<'TemplateEditor'>) {
   const exercises = useStore((s) => s.exercises);
@@ -118,6 +118,7 @@ export default function TemplateEditorScreen({ route, navigation }: RootStackScr
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      <PageWidth style={styles.page}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>{editing ? 'EDIT TEMPLATE' : 'NEW TEMPLATE'}</Text>
         <Pressable onPress={() => navigation.goBack()} hitSlop={8} style={styles.closeBtn}>
@@ -175,12 +176,14 @@ export default function TemplateEditorScreen({ route, navigation }: RootStackScr
           </Pressable>
         </Pressable>
       </Modal>
+      </PageWidth>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
+  safe: { flex: 1, backgroundColor: colors.bg, alignItems: 'center' },
+  page: { flex: 1, width: '100%', maxWidth: layout.formMaxWidth },
   flex: { flex: 1 },
   header: {
     flexDirection: 'row',
@@ -244,6 +247,7 @@ const styles = StyleSheet.create({
   confirmBackdrop: { flex: 1, backgroundColor: colors.overlay, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl },
   confirmDialog: {
     width: '100%',
+    maxWidth: layout.formMaxWidth,
     backgroundColor: colors.bgElevated,
     borderRadius: radius.md,
     borderWidth: 1,

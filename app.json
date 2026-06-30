@@ -34,8 +34,7 @@
       "description": "Progressive — your training log. Track workouts, sets and PRs.",
       "themeColor": "#0B0F14",
       "backgroundColor": "#0B0F14",
-      "display": "standalone",
-      "orientation": "portrait"
+      "display": "standalone"
     },
     "plugins": [
       "expo-font"

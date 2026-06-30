@@ -3,11 +3,11 @@ import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { PrimaryButton } from '../components';
+import { PageWidth, PrimaryButton } from '../components';
 import { RootStackScreenProps } from '../navigation/types';
 import { useStore } from '../store/useStore';
 import { MUSCLE_GROUPS, MuscleGroup } from '../types';
-import { colors, family, font, radius, spacing } from '../theme';
+import { colors, family, font, layout, radius, spacing } from '../theme';
 
 export default function AddExerciseScreen({ navigation }: RootStackScreenProps<'AddExercise'>) {
   const addExercise = useStore((s) => s.addExercise);
@@ -24,6 +24,7 @@ export default function AddExerciseScreen({ navigation }: RootStackScreenProps<'
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      <PageWidth style={styles.page}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>NEW EXERCISE</Text>
         <Pressable onPress={() => navigation.goBack()} hitSlop={8} style={styles.closeBtn}>
@@ -73,12 +74,14 @@ export default function AddExerciseScreen({ navigation }: RootStackScreenProps<'
       <View style={styles.footer}>
         <PrimaryButton title="Save Exercise" icon="checkmark" onPress={onSave} fullWidth disabled={!canSave} />
       </View>
+      </PageWidth>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
+  safe: { flex: 1, backgroundColor: colors.bg, alignItems: 'center' },
+  page: { flex: 1, width: '100%', maxWidth: layout.formMaxWidth },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

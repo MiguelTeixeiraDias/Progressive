@@ -22,7 +22,10 @@ if (!isSupabaseConfigured) {
   );
 }
 
-export const supabase = createClient(supabaseUrl ?? '', supabaseAnonKey ?? '', {
+// supabase-js throws at construction time if the URL is empty/invalid, so an
+// unconfigured client needs a syntactically valid placeholder (not '') to
+// reach the "backend not configured" UI instead of a hard crash.
+export const supabase = createClient(supabaseUrl || 'https://placeholder.invalid', supabaseAnonKey || 'placeholder', {
   auth: {
     // AsyncStorage is already a dependency; reuse it as the session store.
     storage: AsyncStorage,

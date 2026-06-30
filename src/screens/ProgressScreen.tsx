@@ -1,7 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useMemo, useState } from 'react';
 import {
-  Dimensions,
   FlatList,
   Modal,
   NativeScrollEvent,
@@ -20,15 +19,17 @@ import {
   KPICard,
   MuscleFilter,
   MuscleFilterTabs,
+  PageWidth,
   PersonalBestBadge,
   ProgressBar,
   SearchInput,
   SectionHeader,
 } from '../components';
+import { useResponsive } from '../hooks/useResponsive';
 import { TabScreenProps } from '../navigation/types';
 import { useStore } from '../store/useStore';
 import { Exercise } from '../types';
-import { colors, family, font, radius, spacing } from '../theme';
+import { colors, family, font, layout, radius, spacing } from '../theme';
 import { withAlpha } from '../utils/color';
 import { repGuidance } from '../utils/coaching';
 import { formatWeight, signedPct } from '../utils/format';
@@ -47,6 +48,7 @@ import {
 
 const DAY_LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 const MAX_KEY_LIFTS = 6;
+const SIDE_COL_WIDTH = 340;
 
 export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'>) {
   const workouts = useStore((s) => s.workouts);
@@ -102,7 +104,11 @@ export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'
   const [editorOpen, setEditorOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<MuscleFilter>('All');
-  const colW = (Dimensions.get('window').width - spacing.lg * 2 - spacing.md * 2) / 3;
+  const { width, isDesktop } = useResponsive();
+  const pageWidth = Math.min(width, layout.maxContentWidth) - spacing.lg * 2;
+  const mainWidth = isDesktop ? pageWidth - SIDE_COL_WIDTH - spacing.xl : pageWidth;
+  const keyLiftCols = isDesktop ? MAX_KEY_LIFTS : 3;
+  const colW = (mainWidth - spacing.md * (keyLiftCols - 1)) / keyLiftCols;
 
   const pickList = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -143,255 +149,300 @@ export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'
   if (workouts.length === 0) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <View style={styles.head}>
-          <Text style={styles.title}>PROGRESS</Text>
-        </View>
-        <EmptyState icon="stats-chart-outline" title="No progress yet" message="Log a few workouts and your analytics, records and trends show up here." />
+        <PageWidth style={styles.page}>
+          <View style={styles.emptyHead}>
+            <Text style={styles.title}>PROGRESS</Text>
+          </View>
+          <EmptyState icon="stats-chart-outline" title="No progress yet" message="Log a few workouts and your analytics, records and trends show up here." />
+        </PageWidth>
       </SafeAreaView>
     );
   }
 
+  // Headline tiles
+  const tilesEl = (
+    <>
+      <View style={styles.tiles}>
+        {data.pace !== null ? (
+          <KPICard style={styles.tile} label="Current pace" value={data.pace} accent={paceColor} countUp format={signedPct} caption="PER WEEK · 4 WK" />
+        ) : (
+          <KPICard style={styles.tile} label="Current pace" value="—" caption="NOT ENOUGH DATA" />
+        )}
+        <KPICard style={styles.tile} label="Workouts" value={data.totalWorkouts} countUp />
+      </View>
+      <View style={styles.tiles}>
+        <KPICard style={styles.tile} label="Current streak" value={data.streak} countUp caption="DAYS" />
+        {data.latestPr ? (
+          <KPICard
+            style={styles.tile}
+            label="Latest record"
+            value={data.latestPr.maxWeight}
+            unit="kg"
+            accent={colors.primary}
+            countUp
+            format={formatWeight}
+            caption={data.latestPr.exerciseName.toUpperCase()}
+          />
+        ) : (
+          <KPICard style={styles.tile} label="Latest record" value="—" caption="NO RECORDS YET" />
+        )}
+      </View>
+    </>
+  );
+
+  // Key lifts — edit from the heading
+  const keyLiftsEl = (
+    <View style={styles.section}>
+      <SectionHeader title="Key Lifts" subtitle="Personal records on your main lifts" actionLabel="Edit" onAction={() => setEditorOpen(true)} />
+      {featured.length === 0 ? (
+        <View style={styles.card}>
+          <EmptyState icon="barbell-outline" title="No key lifts" message="Choose the lifts you want to track here." actionLabel="Choose Lifts" onAction={() => setEditorOpen(true)} />
+        </View>
+      ) : (
+        <View style={styles.keyLifts}>
+          {featured.map((exId) => {
+            const ex = exercises.find((e) => e.id === exId);
+            const recd = data.prMap[exId];
+            const has = !!recd && recd.maxWeight > 0;
+            return (
+              <Pressable
+                key={exId}
+                onPress={() => navigation.navigate('ExerciseDetail', { exerciseId: exId })}
+                style={({ pressed }) => [styles.keyTile, { width: colW }, pressed && styles.keyTilePressed]}
+              >
+                <Text style={styles.keyName} numberOfLines={1}>
+                  {(ex?.name ?? 'Unknown').toUpperCase()}
+                </Text>
+                <View style={styles.keyValueRow}>
+                  <Text style={styles.keyValue}>{has ? formatWeight(recd.maxWeight) : '—'}</Text>
+                  {has ? <Text style={styles.keyUnit}>kg</Text> : null}
+                </View>
+                <Text style={styles.keySub} numberOfLines={1}>
+                  {has ? `${recd.repsAtMaxWeight} REPS` : 'NO PR YET'}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
+    </View>
+  );
+
+  // Progressive overload
+  const overloadEl = (
+    <View style={styles.section}>
+      <SectionHeader title="Progressive Overload" />
+      <View style={styles.card}>
+        <View style={styles.scoreRow}>
+          <View style={styles.scoreLeft}>
+            <Text style={[styles.scoreValue, { color: scoreColor }]}>{data.score}</Text>
+            <Text style={styles.scoreOutOf}>/ 100</Text>
+          </View>
+          <View style={styles.scoreBadge}>
+            <Text style={styles.scoreBadgeText}>{data.scoreLabel.toUpperCase()}</Text>
+          </View>
+        </View>
+        <ProgressBar progress={data.score / 100} color={scoreColor} height={10} />
+        <View style={styles.insights}>
+          {insights.map((line, i) => (
+            <View key={i} style={styles.insightRow}>
+              <View style={styles.insightTick} />
+              <Text style={styles.insightText}>{line}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+    </View>
+  );
+
+  // Weekly consistency — rolling 4 weeks
+  const weeklyConsistencyEl = (
+    <View style={styles.section}>
+      <SectionHeader title="Weekly Consistency" subtitle="Last 4 weeks · unique workout days" />
+      <View style={styles.weekStack}>
+        {data.weeks.map((w) => (
+          <View key={w.offset} style={[styles.weekCard, w.isCurrent && styles.weekCardCurrent]}>
+            <View style={styles.weekTop}>
+              <Text style={styles.weekLabel}>{w.label.toUpperCase()}</Text>
+              <View style={styles.weekStatusRow}>
+                <Text style={[styles.weekProgress, w.met && { color: colors.primary }]}>
+                  {w.uniqueDays}/{w.goal}
+                </Text>
+                <Text style={[styles.weekStatus, w.met ? styles.weekStatusMet : styles.weekStatusShort]}>
+                  {w.met ? 'GOAL MET' : `${Math.max(0, w.goal - w.uniqueDays)} SHORT`}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.weekBlocks}>
+              {DAY_LETTERS.map((d, i) => (
+                <View key={i} style={styles.weekDayCol}>
+                  <View style={[styles.weekBlock, w.days[i] ? styles.weekBlockOn : styles.weekBlockOff]} />
+                  <Text style={styles.weekDayLetter}>{d}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+
+  // Muscle frequency
+  const muscleFrequencyEl = (
+    <View style={styles.section}>
+      <SectionHeader title="Muscle Frequency" subtitle="Sessions per group · last 4 weeks" />
+      <View style={styles.card}>
+        {data.muscleFreq.map((row) => {
+          const isTop = row.value === maxFreq && row.value > 0;
+          const isFocus = row.group === focusGroup;
+          return (
+            <View key={row.group} style={[styles.muscleRow, isFocus && styles.muscleRowFocus]}>
+              <Text style={[styles.muscleName, isFocus && styles.muscleNameFocus]} numberOfLines={1}>
+                {row.group.toUpperCase()}
+                {isFocus ? '  ★' : ''}
+              </Text>
+              <ProgressBar progress={row.value / maxFreq} color={isFocus || isTop ? colors.primary : withAlpha(colors.text, 0.5)} height={6} style={styles.muscleBar} />
+              <Text style={[styles.muscleValue, isFocus && { color: colors.primary }]}>{row.value}×</Text>
+            </View>
+          );
+        })}
+      </View>
+      {focusGroup ? <Text style={styles.muscleFocusNote}>★ Your focus muscle group.</Text> : null}
+    </View>
+  );
+
+  // Bodyweight trend
+  const bodyweightEl = (
+    <View style={styles.section}>
+      <SectionHeader title="Bodyweight" subtitle="Your weigh-ins over time" />
+      <View style={styles.card}>
+        {bodyWeights.length === 0 ? (
+          <EmptyState
+            icon="body-outline"
+            title="No weigh-ins yet"
+            message="Update your current weight in Settings and your trend builds here."
+          />
+        ) : (
+          <>
+            <View style={styles.bwStatsRow}>
+              <View>
+                <Text style={styles.bwValue}>
+                  {formatWeight(bwCurrent ?? 0)}<Text style={styles.bwUnit}> {unit}</Text>
+                </Text>
+                <Text style={styles.bwStatLabel}>CURRENT</Text>
+              </View>
+              {bwDelta !== null && Math.abs(bwDelta) >= 0.1 ? (
+                <View>
+                  <Text style={[styles.bwValue, { color: colors.primary }]}>
+                    {bwDelta > 0 ? '+' : '−'}{formatWeight(Math.abs(bwDelta))}<Text style={styles.bwUnit}> {unit}</Text>
+                  </Text>
+                  <Text style={styles.bwStatLabel}>SINCE FIRST</Text>
+                </View>
+              ) : null}
+              {targetWeight ? (
+                <View>
+                  <Text style={styles.bwValue}>{formatWeight(targetWeight)}<Text style={styles.bwUnit}> {unit}</Text></Text>
+                  <Text style={styles.bwStatLabel}>TARGET</Text>
+                </View>
+              ) : null}
+            </View>
+            {bwSeries.length >= 2 ? (
+              <View style={styles.bwChart}>
+                {bwSeries.map((e, i) => {
+                  const norm = bwMax > bwMin ? (e.weight - bwMin) / (bwMax - bwMin) : 1;
+                  const h = 14 + norm * 58;
+                  const last = i === bwSeries.length - 1;
+                  return (
+                    <View key={e.id} style={styles.bwCol}>
+                      <View
+                        style={[
+                          styles.bwBar,
+                          { height: h, backgroundColor: last ? colors.primary : withAlpha(colors.text, 0.18) },
+                        ]}
+                      />
+                    </View>
+                  );
+                })}
+              </View>
+            ) : (
+              <Text style={styles.muscleFocusNote}>Log again on another day to see your trend.</Text>
+            )}
+          </>
+        )}
+      </View>
+    </View>
+  );
+
+  // Personal records — scroll within the card
+  const personalRecordsEl = (
+    <View style={styles.section}>
+      <SectionHeader title="Personal Records" subtitle="Your heaviest lifts · scroll for more" />
+      <View style={styles.prWrap}>
+        <ScrollView
+          style={styles.prScroll}
+          nestedScrollEnabled
+          showsVerticalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={onPrScroll}
+          onLayout={(e) => {
+            const h = e.nativeEvent.layout.height;
+            setPr((p) => ({ ...p, layout: h }));
+          }}
+          onContentSizeChange={(_w, h) => setPr((p) => ({ ...p, content: h }))}
+          contentContainerStyle={styles.prScrollContent}
+        >
+          {data.prs.map((rec) => (
+            <Pressable key={rec.exerciseId} onPress={() => navigation.navigate('ExerciseDetail', { exerciseId: rec.exerciseId })}>
+              <PersonalBestBadge
+                title={rec.exerciseName}
+                value={`${formatWeight(rec.maxWeight)} kg`}
+                caption={`${rec.repsAtMaxWeight} reps · e1RM ${formatWeight(rec.estimatedOneRepMax)} kg`}
+              />
+            </Pressable>
+          ))}
+        </ScrollView>
+        {prScrollable ? (
+          <View style={styles.prTrack} pointerEvents="none">
+            <View style={[styles.prThumb, { height: prThumbH, transform: [{ translateY: prThumbY }] }]} />
+          </View>
+        ) : null}
+      </View>
+    </View>
+  );
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.head}>
+      <PageWidth style={styles.head}>
         <Text style={styles.title}>PROGRESS</Text>
         <Text style={styles.subtitle}>THE PERFORMANCE REPORT</Text>
-      </View>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Headline tiles */}
-        <View style={styles.tiles}>
-          {data.pace !== null ? (
-            <KPICard style={styles.tile} label="Current pace" value={data.pace} accent={paceColor} countUp format={signedPct} caption="PER WEEK · 4 WK" />
-          ) : (
-            <KPICard style={styles.tile} label="Current pace" value="—" caption="NOT ENOUGH DATA" />
-          )}
-          <KPICard style={styles.tile} label="Workouts" value={data.totalWorkouts} countUp />
-        </View>
-        <View style={styles.tiles}>
-          <KPICard style={styles.tile} label="Current streak" value={data.streak} countUp caption="DAYS" />
-          {data.latestPr ? (
-            <KPICard
-              style={styles.tile}
-              label="Latest record"
-              value={data.latestPr.maxWeight}
-              unit="kg"
-              accent={colors.primary}
-              countUp
-              format={formatWeight}
-              caption={data.latestPr.exerciseName.toUpperCase()}
-            />
-          ) : (
-            <KPICard style={styles.tile} label="Latest record" value="—" caption="NO RECORDS YET" />
-          )}
-        </View>
-
-        {/* Key lifts — edit from the heading */}
-        <View style={styles.section}>
-          <SectionHeader title="Key Lifts" subtitle="Personal records on your main lifts" actionLabel="Edit" onAction={() => setEditorOpen(true)} />
-          {featured.length === 0 ? (
-            <View style={styles.card}>
-              <EmptyState icon="barbell-outline" title="No key lifts" message="Choose the lifts you want to track here." actionLabel="Choose Lifts" onAction={() => setEditorOpen(true)} />
+      </PageWidth>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <PageWidth style={styles.page}>
+          {tilesEl}
+          {isDesktop ? (
+            <View style={styles.desktopGrid}>
+              <View style={styles.mainCol}>
+                {keyLiftsEl}
+                {overloadEl}
+                {weeklyConsistencyEl}
+              </View>
+              <View style={styles.sideCol}>
+                {muscleFrequencyEl}
+                {bodyweightEl}
+                {personalRecordsEl}
+              </View>
             </View>
           ) : (
-            <View style={styles.keyLifts}>
-              {featured.map((exId) => {
-                const ex = exercises.find((e) => e.id === exId);
-                const recd = data.prMap[exId];
-                const has = !!recd && recd.maxWeight > 0;
-                return (
-                  <Pressable
-                    key={exId}
-                    onPress={() => navigation.navigate('ExerciseDetail', { exerciseId: exId })}
-                    style={({ pressed }) => [styles.keyTile, { width: colW }, pressed && styles.keyTilePressed]}
-                  >
-                    <Text style={styles.keyName} numberOfLines={1}>
-                      {(ex?.name ?? 'Unknown').toUpperCase()}
-                    </Text>
-                    <View style={styles.keyValueRow}>
-                      <Text style={styles.keyValue}>{has ? formatWeight(recd.maxWeight) : '—'}</Text>
-                      {has ? <Text style={styles.keyUnit}>kg</Text> : null}
-                    </View>
-                    <Text style={styles.keySub} numberOfLines={1}>
-                      {has ? `${recd.repsAtMaxWeight} REPS` : 'NO PR YET'}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+            <View style={styles.stack}>
+              {keyLiftsEl}
+              {overloadEl}
+              {weeklyConsistencyEl}
+              {muscleFrequencyEl}
+              {bodyweightEl}
+              {personalRecordsEl}
             </View>
           )}
-        </View>
-
-        {/* Progressive overload */}
-        <View style={styles.section}>
-          <SectionHeader title="Progressive Overload" />
-          <View style={styles.card}>
-            <View style={styles.scoreRow}>
-              <View style={styles.scoreLeft}>
-                <Text style={[styles.scoreValue, { color: scoreColor }]}>{data.score}</Text>
-                <Text style={styles.scoreOutOf}>/ 100</Text>
-              </View>
-              <View style={styles.scoreBadge}>
-                <Text style={styles.scoreBadgeText}>{data.scoreLabel.toUpperCase()}</Text>
-              </View>
-            </View>
-            <ProgressBar progress={data.score / 100} color={scoreColor} height={10} />
-            <View style={styles.insights}>
-              {insights.map((line, i) => (
-                <View key={i} style={styles.insightRow}>
-                  <View style={styles.insightTick} />
-                  <Text style={styles.insightText}>{line}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        </View>
-
-        {/* Weekly consistency — rolling 4 weeks */}
-        <View style={styles.section}>
-          <SectionHeader title="Weekly Consistency" subtitle="Last 4 weeks · unique workout days" />
-          <View style={styles.weekStack}>
-            {data.weeks.map((w) => (
-              <View key={w.offset} style={[styles.weekCard, w.isCurrent && styles.weekCardCurrent]}>
-                <View style={styles.weekTop}>
-                  <Text style={styles.weekLabel}>{w.label.toUpperCase()}</Text>
-                  <View style={styles.weekStatusRow}>
-                    <Text style={[styles.weekProgress, w.met && { color: colors.primary }]}>
-                      {w.uniqueDays}/{w.goal}
-                    </Text>
-                    <Text style={[styles.weekStatus, w.met ? styles.weekStatusMet : styles.weekStatusShort]}>
-                      {w.met ? 'GOAL MET' : `${Math.max(0, w.goal - w.uniqueDays)} SHORT`}
-                    </Text>
-                  </View>
-                </View>
-                <View style={styles.weekBlocks}>
-                  {DAY_LETTERS.map((d, i) => (
-                    <View key={i} style={styles.weekDayCol}>
-                      <View style={[styles.weekBlock, w.days[i] ? styles.weekBlockOn : styles.weekBlockOff]} />
-                      <Text style={styles.weekDayLetter}>{d}</Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        {/* Muscle frequency */}
-        <View style={styles.section}>
-          <SectionHeader title="Muscle Frequency" subtitle="Sessions per group · last 4 weeks" />
-          <View style={styles.card}>
-            {data.muscleFreq.map((row) => {
-              const isTop = row.value === maxFreq && row.value > 0;
-              const isFocus = row.group === focusGroup;
-              return (
-                <View key={row.group} style={[styles.muscleRow, isFocus && styles.muscleRowFocus]}>
-                  <Text style={[styles.muscleName, isFocus && styles.muscleNameFocus]} numberOfLines={1}>
-                    {row.group.toUpperCase()}
-                    {isFocus ? '  ★' : ''}
-                  </Text>
-                  <ProgressBar progress={row.value / maxFreq} color={isFocus || isTop ? colors.primary : withAlpha(colors.text, 0.5)} height={6} style={styles.muscleBar} />
-                  <Text style={[styles.muscleValue, isFocus && { color: colors.primary }]}>{row.value}×</Text>
-                </View>
-              );
-            })}
-          </View>
-          {focusGroup ? <Text style={styles.muscleFocusNote}>★ Your focus muscle group.</Text> : null}
-        </View>
-
-        {/* Bodyweight trend */}
-        <View style={styles.section}>
-          <SectionHeader title="Bodyweight" subtitle="Your weigh-ins over time" />
-          <View style={styles.card}>
-            {bodyWeights.length === 0 ? (
-              <EmptyState
-                icon="body-outline"
-                title="No weigh-ins yet"
-                message="Update your current weight in Settings and your trend builds here."
-              />
-            ) : (
-              <>
-                <View style={styles.bwStatsRow}>
-                  <View>
-                    <Text style={styles.bwValue}>
-                      {formatWeight(bwCurrent ?? 0)}<Text style={styles.bwUnit}> {unit}</Text>
-                    </Text>
-                    <Text style={styles.bwStatLabel}>CURRENT</Text>
-                  </View>
-                  {bwDelta !== null && Math.abs(bwDelta) >= 0.1 ? (
-                    <View>
-                      <Text style={[styles.bwValue, { color: colors.primary }]}>
-                        {bwDelta > 0 ? '+' : '−'}{formatWeight(Math.abs(bwDelta))}<Text style={styles.bwUnit}> {unit}</Text>
-                      </Text>
-                      <Text style={styles.bwStatLabel}>SINCE FIRST</Text>
-                    </View>
-                  ) : null}
-                  {targetWeight ? (
-                    <View>
-                      <Text style={styles.bwValue}>{formatWeight(targetWeight)}<Text style={styles.bwUnit}> {unit}</Text></Text>
-                      <Text style={styles.bwStatLabel}>TARGET</Text>
-                    </View>
-                  ) : null}
-                </View>
-                {bwSeries.length >= 2 ? (
-                  <View style={styles.bwChart}>
-                    {bwSeries.map((e, i) => {
-                      const norm = bwMax > bwMin ? (e.weight - bwMin) / (bwMax - bwMin) : 1;
-                      const h = 14 + norm * 58;
-                      const last = i === bwSeries.length - 1;
-                      return (
-                        <View key={e.id} style={styles.bwCol}>
-                          <View
-                            style={[
-                              styles.bwBar,
-                              { height: h, backgroundColor: last ? colors.primary : withAlpha(colors.text, 0.18) },
-                            ]}
-                          />
-                        </View>
-                      );
-                    })}
-                  </View>
-                ) : (
-                  <Text style={styles.muscleFocusNote}>Log again on another day to see your trend.</Text>
-                )}
-              </>
-            )}
-          </View>
-        </View>
-
-        {/* Personal records — scroll within the card */}
-        <View style={styles.section}>
-          <SectionHeader title="Personal Records" subtitle="Your heaviest lifts · scroll for more" />
-          <View style={styles.prWrap}>
-            <ScrollView
-              style={styles.prScroll}
-              nestedScrollEnabled
-              showsVerticalScrollIndicator={false}
-              scrollEventThrottle={16}
-              onScroll={onPrScroll}
-              onLayout={(e) => {
-                const layout = e.nativeEvent.layout.height;
-                setPr((p) => ({ ...p, layout }));
-              }}
-              onContentSizeChange={(_w, h) => setPr((p) => ({ ...p, content: h }))}
-              contentContainerStyle={styles.prScrollContent}
-            >
-              {data.prs.map((rec) => (
-                <Pressable key={rec.exerciseId} onPress={() => navigation.navigate('ExerciseDetail', { exerciseId: rec.exerciseId })}>
-                  <PersonalBestBadge
-                    title={rec.exerciseName}
-                    value={`${formatWeight(rec.maxWeight)} kg`}
-                    caption={`${rec.repsAtMaxWeight} reps · e1RM ${formatWeight(rec.estimatedOneRepMax)} kg`}
-                  />
-                </Pressable>
-              ))}
-            </ScrollView>
-            {prScrollable ? (
-              <View style={styles.prTrack} pointerEvents="none">
-                <View style={[styles.prThumb, { height: prThumbH, transform: [{ translateY: prThumbY }] }]} />
-              </View>
-            ) : null}
-          </View>
-        </View>
+        </PageWidth>
       </ScrollView>
 
       {/* Key Lifts editor — multi-select */}
@@ -440,9 +491,15 @@ export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
-  content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.lg },
+  safe: { flex: 1, backgroundColor: colors.bg, alignItems: 'center' },
+  scrollContent: { width: '100%', alignItems: 'center', paddingBottom: spacing.xxl },
+  page: { paddingHorizontal: spacing.lg, gap: spacing.lg },
+  stack: { gap: spacing.lg },
+  desktopGrid: { flexDirection: 'row', gap: spacing.xl, alignItems: 'flex-start' },
+  mainCol: { flex: 1, gap: spacing.lg, minWidth: 0 },
+  sideCol: { width: SIDE_COL_WIDTH, gap: spacing.lg },
   head: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.md },
+  emptyHead: { paddingTop: spacing.sm, paddingBottom: spacing.md },
   title: { color: colors.text, fontFamily: family.display, fontSize: font.display, lineHeight: Math.ceil(font.display * 1.15), letterSpacing: 1, includeFontPadding: false },
   subtitle: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 1.2, marginTop: 2 },
   tiles: { flexDirection: 'row', gap: spacing.md },
@@ -524,8 +581,10 @@ const styles = StyleSheet.create({
   prThumb: { width: 3, borderRadius: 2, backgroundColor: colors.primary },
 
   // Modals
-  modalBackdrop: { flex: 1, backgroundColor: colors.overlay, justifyContent: 'flex-end' },
+  modalBackdrop: { flex: 1, backgroundColor: colors.overlay, justifyContent: 'flex-end', alignItems: 'center' },
   modalSheet: {
+    width: '100%',
+    maxWidth: layout.formMaxWidth,
     height: '82%',
     backgroundColor: colors.bgElevated,
     borderTopLeftRadius: radius.md,

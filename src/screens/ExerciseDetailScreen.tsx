@@ -3,10 +3,10 @@ import React, { useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { EmptyState, KPICard, MuscleGroupBadge, PrimaryButton } from '../components';
+import { EmptyState, KPICard, MuscleGroupBadge, PageWidth, PrimaryButton } from '../components';
 import { RootStackScreenProps } from '../navigation/types';
 import { useStore } from '../store/useStore';
-import { colors, family, font, radius, spacing } from '../theme';
+import { colors, family, font, layout, radius, spacing } from '../theme';
 import { formatWeight, signedPct } from '../utils/format';
 import {
   actualOneRepMax,
@@ -42,12 +42,14 @@ export default function ExerciseDetailScreen({ route, navigation }: RootStackScr
   if (!exercise) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <View style={styles.header}>
-          <Pressable onPress={() => navigation.goBack()} hitSlop={8} style={styles.closeBtn}>
-            <Ionicons name="close" size={20} color={colors.textDim} />
-          </Pressable>
-        </View>
-        <EmptyState icon="alert-circle-outline" title="Exercise not found" />
+        <PageWidth style={styles.page}>
+          <View style={styles.header}>
+            <Pressable onPress={() => navigation.goBack()} hitSlop={8} style={styles.closeBtn}>
+              <Ionicons name="close" size={20} color={colors.textDim} />
+            </Pressable>
+          </View>
+          <EmptyState icon="alert-circle-outline" title="Exercise not found" />
+        </PageWidth>
       </SafeAreaView>
     );
   }
@@ -68,6 +70,7 @@ export default function ExerciseDetailScreen({ route, navigation }: RootStackScr
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      <PageWidth style={styles.page}>
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>{exercise.name.toUpperCase()}</Text>
@@ -180,12 +183,14 @@ export default function ExerciseDetailScreen({ route, navigation }: RootStackScr
           </Pressable>
         </Pressable>
       </Modal>
+      </PageWidth>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
+  safe: { flex: 1, backgroundColor: colors.bg, alignItems: 'center' },
+  page: { flex: 1, width: '100%', maxWidth: layout.formMaxWidth },
   header: { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.md },
   title: { color: colors.text, fontFamily: family.display, fontSize: font.h1, lineHeight: Math.ceil(font.h1 * 1.15), letterSpacing: 0.5, includeFontPadding: false },
   closeBtn: { width: 36, height: 36, borderRadius: radius.sm, backgroundColor: colors.card3, alignItems: 'center', justifyContent: 'center' },
@@ -216,6 +221,7 @@ const styles = StyleSheet.create({
   confirmBackdrop: { flex: 1, backgroundColor: colors.overlay, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl },
   confirmDialog: {
     width: '100%',
+    maxWidth: layout.formMaxWidth,
     backgroundColor: colors.bgElevated,
     borderRadius: radius.md,
     borderWidth: 1,

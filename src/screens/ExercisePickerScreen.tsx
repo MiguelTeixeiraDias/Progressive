@@ -3,11 +3,11 @@ import React, { useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ExerciseCard, MuscleFilter, MuscleFilterTabs, PrimaryButton, SearchInput } from '../components';
+import { ExerciseCard, MuscleFilter, MuscleFilterTabs, PageWidth, PrimaryButton, SearchInput } from '../components';
 import { RootStackScreenProps } from '../navigation/types';
 import { useStore } from '../store/useStore';
 import { Exercise } from '../types';
-import { colors, family, font, radius, spacing } from '../theme';
+import { colors, family, font, layout, radius, spacing } from '../theme';
 import { relativeDay } from '../utils/date';
 import { lastPerformance } from '../utils/stats';
 
@@ -41,53 +41,56 @@ export default function ExercisePickerScreen({ navigation }: RootStackScreenProp
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>ADD EXERCISE</Text>
-        <Pressable onPress={() => navigation.goBack()} hitSlop={8} style={styles.closeBtn}>
-          <Ionicons name="close" size={20} color={colors.textDim} />
-        </Pressable>
-      </View>
+      <PageWidth style={styles.page}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>ADD EXERCISE</Text>
+          <Pressable onPress={() => navigation.goBack()} hitSlop={8} style={styles.closeBtn}>
+            <Ionicons name="close" size={20} color={colors.textDim} />
+          </Pressable>
+        </View>
 
-      <SearchInput value={query} onChangeText={setQuery} style={styles.search} />
+        <SearchInput value={query} onChangeText={setQuery} style={styles.search} />
 
-      <MuscleFilterTabs value={filter} onChange={setFilter} />
+        <MuscleFilterTabs value={filter} onChange={setFilter} />
 
-      <FlatList
-        data={data}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        showsVerticalScrollIndicator={false}
-        ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
-        renderItem={({ item }) => (
-          <ExerciseCard
-            exercise={item}
-            subtitle={subtitleFor(item)}
-            trailingIcon="add"
-            trailingAccent={colors.primary}
-            onPress={() => onPick(item)}
-          />
-        )}
-        ListFooterComponent={
-          <PrimaryButton
-            title="Create Custom Exercise"
-            icon="add"
-            variant="ghost"
-            size="md"
-            fullWidth
-            onPress={() => navigation.navigate('AddExercise')}
-            style={{ marginTop: spacing.lg }}
-          />
-        }
-        ListEmptyComponent={<Text style={styles.empty}>No exercises match “{query}”.</Text>}
-      />
+        <FlatList
+          data={data}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.list}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={false}
+          ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
+          renderItem={({ item }) => (
+            <ExerciseCard
+              exercise={item}
+              subtitle={subtitleFor(item)}
+              trailingIcon="add"
+              trailingAccent={colors.primary}
+              onPress={() => onPick(item)}
+            />
+          )}
+          ListFooterComponent={
+            <PrimaryButton
+              title="Create Custom Exercise"
+              icon="add"
+              variant="ghost"
+              size="md"
+              fullWidth
+              onPress={() => navigation.navigate('AddExercise')}
+              style={{ marginTop: spacing.lg }}
+            />
+          }
+          ListEmptyComponent={<Text style={styles.empty}>No exercises match “{query}”.</Text>}
+        />
+      </PageWidth>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
+  safe: { flex: 1, backgroundColor: colors.bg, alignItems: 'center' },
+  page: { flex: 1, width: '100%', maxWidth: layout.formMaxWidth },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

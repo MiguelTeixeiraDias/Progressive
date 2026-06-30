@@ -3,10 +3,10 @@ import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { EmptyState, MuscleGroupBadge, PrimaryButton } from '../components';
+import { EmptyState, MuscleGroupBadge, PageWidth, PrimaryButton } from '../components';
 import { RootStackScreenProps } from '../navigation/types';
 import { useStore } from '../store/useStore';
-import { colors, family, font, radius, spacing } from '../theme';
+import { colors, family, font, layout, radius, spacing } from '../theme';
 import { fullDate } from '../utils/date';
 import { formatDuration, formatVolume } from '../utils/format';
 import { exerciseVolume, sessionSetCount } from '../utils/stats';
@@ -31,12 +31,14 @@ export default function WorkoutDetailScreen({ route, navigation }: RootStackScre
   if (!session) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <View style={styles.header}>
-          <Pressable onPress={() => navigation.goBack()} hitSlop={8} style={styles.closeBtn}>
-            <Ionicons name="close" size={20} color={colors.textDim} />
-          </Pressable>
-        </View>
-        <EmptyState icon="alert-circle-outline" title="Workout not found" />
+        <PageWidth style={styles.page}>
+          <View style={styles.header}>
+            <Pressable onPress={() => navigation.goBack()} hitSlop={8} style={styles.closeBtn}>
+              <Ionicons name="close" size={20} color={colors.textDim} />
+            </Pressable>
+          </View>
+          <EmptyState icon="alert-circle-outline" title="Workout not found" />
+        </PageWidth>
       </SafeAreaView>
     );
   }
@@ -47,6 +49,7 @@ export default function WorkoutDetailScreen({ route, navigation }: RootStackScre
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      <PageWidth style={styles.page}>
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>{session.name.toUpperCase()}</Text>
@@ -103,12 +106,14 @@ export default function WorkoutDetailScreen({ route, navigation }: RootStackScre
       <View style={styles.footer}>
         <PrimaryButton title="Repeat Workout" icon="refresh" onPress={repeat} fullWidth />
       </View>
+      </PageWidth>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
+  safe: { flex: 1, backgroundColor: colors.bg, alignItems: 'center' },
+  page: { flex: 1, width: '100%', maxWidth: layout.formMaxWidth },
   header: { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.md },
   title: { color: colors.text, fontFamily: family.display, fontSize: font.h1, lineHeight: Math.ceil(font.h1 * 1.15), letterSpacing: 0.5, includeFontPadding: false },
   date: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 1, marginTop: 4 },

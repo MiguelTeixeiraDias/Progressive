@@ -1,4 +1,5 @@
 export { default as Card } from './Card';
+export { default as PageWidth } from './PageWidth';
 export { default as PrimaryButton } from './PrimaryButton';
 export { default as ProgressBar } from './ProgressBar';
 export { default as MuscleGroupBadge } from './MuscleGroupBadge';

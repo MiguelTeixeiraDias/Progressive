@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { SectionHeader } from '../components';
+import { PageWidth, SectionHeader } from '../components';
 import PrimaryButton from '../components/PrimaryButton';
 import { useAuth } from '../auth/AuthContext';
 import { TabScreenProps } from '../navigation/types';
@@ -27,7 +27,7 @@ import {
   TrainingSplit,
   UnitPreference,
 } from '../types';
-import { colors, family, font, radius, spacing } from '../theme';
+import { colors, family, font, layout, radius, spacing } from '../theme';
 
 const UNITS: UnitPreference[] = ['kg', 'lb'];
 const EXPERIENCE: ExperienceLevel[] = ['Beginner', 'Intermediate', 'Advanced'];
@@ -223,6 +223,7 @@ export default function SettingsScreen({ navigation }: TabScreenProps<'Settings'
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      <PageWidth style={styles.page}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.head}>
           <Text style={styles.title}>SETTINGS</Text>
@@ -440,6 +441,7 @@ export default function SettingsScreen({ navigation }: TabScreenProps<'Settings'
           </View>
         ) : null}
       </KeyboardAvoidingView>
+      </PageWidth>
     </SafeAreaView>
   );
 }
@@ -462,7 +464,8 @@ function parseNum(s: string): number | undefined {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
+  safe: { flex: 1, backgroundColor: colors.bg, alignItems: 'center' },
+  page: { flex: 1, width: '100%', maxWidth: layout.formMaxWidth },
   flex: { flex: 1 },
   head: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.md },
   title: { color: colors.text, fontFamily: family.display, fontSize: font.display, lineHeight: Math.ceil(font.display * 1.15), letterSpacing: 1, includeFontPadding: false },
@@ -515,8 +518,10 @@ const styles = StyleSheet.create({
   },
   selectValue: { flex: 1, marginRight: spacing.md, color: colors.text, fontFamily: family.medium, fontSize: font.body },
   selectPlaceholder: { color: colors.textFaint },
-  sheetBackdrop: { flex: 1, backgroundColor: colors.overlay, justifyContent: 'flex-end' },
+  sheetBackdrop: { flex: 1, backgroundColor: colors.overlay, justifyContent: 'flex-end', alignItems: 'center' },
   sheet: {
+    width: '100%',
+    maxWidth: layout.formMaxWidth,
     maxHeight: '70%',
     backgroundColor: colors.bgElevated,
     borderTopLeftRadius: radius.lg,

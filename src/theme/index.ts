@@ -51,6 +51,19 @@ export const spacing = {
   xxxl: 40,
 } as const;
 
+/** Width thresholds used to switch between phone, tablet and desktop layouts. */
+export const breakpoints = {
+  tablet: 768,
+  desktop: 1024,
+} as const;
+
+/** Desktop/web layout constants — capped content widths and the sidebar rail. */
+export const layout = {
+  maxContentWidth: 1080,
+  formMaxWidth: 560,
+  sidebarWidth: 248,
+} as const;
+
 /** Sharp, deliberate corners — 4px controls, 8px cards. */
 export const radius = {
   xs: 2,

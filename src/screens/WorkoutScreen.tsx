@@ -14,11 +14,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { PrimaryButton, WorkoutExerciseCard } from '../components';
+import { PageWidth, PrimaryButton, WorkoutExerciseCard } from '../components';
 import { TabScreenProps } from '../navigation/types';
 import { useStore } from '../store/useStore';
 import { MuscleGroup, WorkoutTemplate } from '../types';
-import { colors, family, font, radius, spacing } from '../theme';
+import { colors, family, font, layout, radius, spacing } from '../theme';
 import { formatClock } from '../utils/format';
 import { lastPerformance, lastWorkout } from '../utils/stats';
 
@@ -98,7 +98,7 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
 
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <View style={styles.flex}>
+        <PageWidth style={styles.page}>
           {/* Page heading — consistent with the other tabs */}
           <View style={styles.head}>
             <Text style={styles.headTitle}>WORKOUT</Text>
@@ -167,7 +167,7 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
               </ScrollView>
             )}
           </View>
-        </View>
+        </PageWidth>
 
         {/* Bottom-right: square create-template button */}
         <Pressable
@@ -235,6 +235,7 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      <PageWidth style={styles.page}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.header}>
           <View style={styles.flex}>
@@ -306,6 +307,7 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
           />
         </View>
       </KeyboardAvoidingView>
+      </PageWidth>
 
       {/* Confirm before discarding — a custom modal, since RN's Alert is a no-op on web. */}
       <Modal visible={confirmDiscard} transparent animationType="fade" onRequestClose={() => setConfirmDiscard(false)}>
@@ -335,7 +337,8 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
+  safe: { flex: 1, backgroundColor: colors.bg, alignItems: 'center' },
+  page: { flex: 1, width: '100%', maxWidth: layout.maxContentWidth },
   flex: { flex: 1 },
 
   // Pre-start
@@ -370,6 +373,7 @@ const styles = StyleSheet.create({
   confirmBackdrop: { flex: 1, backgroundColor: colors.overlay, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl },
   confirmDialog: {
     width: '100%',
+    maxWidth: layout.formMaxWidth,
     backgroundColor: colors.bgElevated,
     borderRadius: radius.md,
     borderWidth: 1,

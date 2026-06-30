@@ -6,12 +6,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Card,
   EmptyState,
+  PageWidth,
   PercentChart,
   PrimaryButton,
   SectionHeader,
   StreakCalendarModal,
   WorkoutSummaryCard,
 } from '../components';
+import { useResponsive } from '../hooks/useResponsive';
 import { TabScreenProps } from '../navigation/types';
 import { useStore } from '../store/useStore';
 import { colors, displayText, family, font, radius, spacing } from '../theme';
@@ -57,6 +59,7 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
   const startWorkoutFrom = useStore((s) => s.startWorkoutFrom);
 
   const [streakOpen, setStreakOpen] = useState(false);
+  const { isDesktop } = useResponsive();
 
   const m = useMemo(() => {
     const last = lastWorkout(workouts);
@@ -122,237 +125,283 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
     if (startWorkoutFrom(id)) navigation.navigate('Workout');
   };
 
+  // Masthead
+  const mastheadEl = (
+    <View style={styles.masthead}>
+      <View style={styles.mastheadRow}>
+        <Text style={styles.eyebrow}>{fullDate(Date.now()).toUpperCase()}</Text>
+        <Pressable
+          onPress={() => setStreakOpen(true)}
+          hitSlop={8}
+          style={({ pressed }) => [styles.streakChip, pressed && styles.streakChipPressed]}
+        >
+          <Ionicons name="flame" size={13} color={colors.primary} />
+          <Text style={styles.streakTag}>{m.streak}</Text>
+          <View style={styles.streakDivider} />
+          <Text style={styles.streakWeek}>{week.done}/{week.goal} WK</Text>
+        </Pressable>
+      </View>
+      <Text style={styles.greeting}>
+        {GREETING[timeOfDay()].toUpperCase()},{'\n'}
+        {settings.userName.toUpperCase()}
+      </Text>
+      <Text style={styles.subtitle}>{subtitle}</Text>
+    </View>
+  );
+
+  // CTAs
+  const ctasEl = (
+    <View style={styles.ctas}>
+      <PrimaryButton
+        title={activeWorkout ? 'Resume Workout' : 'Start Workout'}
+        icon={activeWorkout ? 'play' : 'add'}
+        onPress={goToWorkout}
+        fullWidth
+      />
+      {m.last ? (
+        <PrimaryButton title="Repeat Last Session" icon="refresh" variant="secondary" size="md" onPress={onRepeat} fullWidth />
+      ) : null}
+    </View>
+  );
+
+  // Train next — suggested session from the user's preferred split
+  const trainNextEl = trainNext ? (
+    <Pressable onPress={goToWorkout} style={({ pressed }) => [styles.trainNext, pressed && styles.trainNextPressed]}>
+      <View style={styles.trainNextIcon}>
+        <Ionicons name="barbell" size={18} color={colors.bg} />
+      </View>
+      <View style={styles.flex}>
+        <Text style={styles.trainNextLabel}>TRAIN NEXT · {trainNext.label.toUpperCase()}</Text>
+        <Text style={styles.trainNextName}>{trainNext.day.name.toUpperCase()}</Text>
+        <Text style={styles.trainNextGroups} numberOfLines={1}>
+          {trainNext.day.groups.join(' · ').toUpperCase()}
+        </Text>
+      </View>
+      <Ionicons name="arrow-forward" size={18} color={colors.primary} />
+    </Pressable>
+  ) : null;
+
+  // Feature: progressive-overload increase this week
+  const featureEl = (
+    <Card style={styles.feature}>
+      <Text style={styles.cardLabel}>INCREASE THIS WEEK</Text>
+      {m.hasComparison ? (
+        <>
+          <View style={styles.featureValueRow}>
+            <Text style={[styles.featureValue, { color: weekPctColor }]}>
+              {m.weekPct === null ? '—' : signedPct(m.weekPct)}
+            </Text>
+            {m.weekPct !== null ? <Text style={styles.featureUnit}>avg overload</Text> : null}
+          </View>
+          <Text style={styles.featureCaption}>
+            {m.weekPct === null
+              ? 'No comparable lifts logged yet this week.'
+              : 'Average per-exercise gain vs your previous sessions.'}
+          </Text>
+          <PercentChart data={m.daily} height={104} style={styles.featureChart} />
+        </>
+      ) : (
+        <View style={styles.featureEmpty}>
+          <Ionicons name="trending-up" size={22} color={colors.primary} />
+          <Text style={styles.featureEmptyText}>
+            First logged session — comparison starts next time you train these lifts.
+          </Text>
+        </View>
+      )}
+    </Card>
+  );
+
+  // Body — current weight, BMI and progress toward the target weight
+  const bodyEl = bodyWeight ? (
+    <Card>
+      <Text style={styles.cardLabel}>BODY</Text>
+      <View style={styles.bodyRow}>
+        <View style={styles.bodyStat}>
+          <Text style={styles.bodyValue}>{formatWeight(bodyWeight)}<Text style={styles.bodyUnit}> {unit}</Text></Text>
+          <Text style={styles.bodyStatLabel}>CURRENT</Text>
+        </View>
+        {bmiValue !== null ? (
+          <View style={styles.bodyStat}>
+            <Text style={styles.bodyValue}>{bmiValue.toFixed(1)}</Text>
+            <Text style={styles.bodyStatLabel}>BMI · {bmiLabel(bmiValue).toUpperCase()}</Text>
+          </View>
+        ) : null}
+      </View>
+      {target ? (
+        <Text style={styles.bodyTarget}>
+          {target.direction === 'reached'
+            ? '🎯 You’re at your target weight.'
+            : `${formatWeight(target.delta)} ${unit} to ${target.direction} to reach your target.`}
+        </Text>
+      ) : (
+        <Text style={styles.bodyTarget}>Set a target weight in Settings to track progress here.</Text>
+      )}
+    </Card>
+  ) : null;
+
+  // Most improved — wide editorial card
+  const mostImprovedEl = (
+    <Card>
+      <Text style={styles.cardLabel}>MOST IMPROVED LIFT</Text>
+      {m.improved ? (
+        <>
+          <View style={styles.improvedRow}>
+            <Text style={styles.improvedName}>{m.improved.name.toUpperCase()}</Text>
+            <Text style={styles.improvedDelta}>+{formatWeight(m.improved.deltaWeight)} KG</Text>
+          </View>
+          <Text style={styles.improvedLine}>
+            Up {Math.round(m.improved.deltaPct)}% on your top set since you started tracking it.
+          </Text>
+        </>
+      ) : (
+        <Text style={styles.improvedLine}>Log a lift twice and your biggest gain shows up here.</Text>
+      )}
+    </Card>
+  );
+
+  // Muscle focus — 6x7 weekly block grid
+  const muscleFocusEl = (
+    <View style={styles.section}>
+      <SectionHeader title="Muscle Focus" subtitle="Groups trained by day · this week" />
+      {focus ? (
+        <View style={[styles.focusNudge, focus.trainedThisWeek ? styles.focusNudgeOk : styles.focusNudgeWarn]}>
+          <Ionicons
+            name={focus.trainedThisWeek ? 'checkmark-circle' : 'alert-circle'}
+            size={15}
+            color={focus.trainedThisWeek ? colors.primary : colors.text}
+          />
+          <Text style={styles.focusNudgeText}>
+            {focus.trainedThisWeek
+              ? `Focus on track — ${focus.group} trained this week.`
+              : `Your focus is ${focus.group} — not trained yet this week.`}
+          </Text>
+        </View>
+      ) : null}
+      <Card>
+        {trainedThisWeek ? (
+          <>
+            <View style={styles.gridHeader}>
+              <View style={styles.gridNameSpacer} />
+              <View style={styles.gridBlocks}>
+                {DAY_LETTERS.map((d, i) => (
+                  <Text
+                    key={i}
+                    style={[styles.gridDayLetter, i === todayCol && styles.gridDayLetterToday]}
+                  >
+                    {d}
+                  </Text>
+                ))}
+              </View>
+            </View>
+            {m.muscleGrid.map((row) => (
+              <View key={row.group} style={styles.gridRow}>
+                <Text style={styles.gridName}>{row.group.toUpperCase()}</Text>
+                <View style={styles.gridBlocks}>
+                  {row.days.map((on, i) => (
+                    <View
+                      key={i}
+                      style={[styles.block, on ? styles.blockOn : styles.blockOff]}
+                    />
+                  ))}
+                </View>
+              </View>
+            ))}
+          </>
+        ) : (
+          <EmptyState icon="grid-outline" title="No sessions this week" message="Train a group and its week lights up here." />
+        )}
+      </Card>
+    </View>
+  );
+
+  // Next target — progression coaching insight
+  const nextTargetEl = (
+    <View style={styles.section}>
+      <SectionHeader title="Next Target" subtitle="The lift most ready to progress" />
+      <Card>
+        <Text style={styles.cardLabel}>READY TO PROGRESS</Text>
+        {m.target ? (
+          <>
+            <Text style={styles.targetName}>{m.target.name.toUpperCase()}</Text>
+            <View style={styles.targetCueRow}>
+              <Ionicons name="arrow-up-circle" size={16} color={colors.primary} />
+              <Text style={styles.targetCue}>
+                Try +{formatWeight(targetIncrement)}kg next time
+              </Text>
+            </View>
+            <Text style={styles.targetMeta}>
+              Last top set · {formatWeight(m.target.topWeight)}kg × {m.target.reps} reps
+            </Text>
+            {reps ? (
+              <Text style={styles.targetGuidance}>{reps.note}</Text>
+            ) : null}
+          </>
+        ) : (
+          <Text style={styles.improvedLine}>
+            Log a lift twice without dropping volume and your next target appears here.
+          </Text>
+        )}
+      </Card>
+    </View>
+  );
+
+  // Last session — History is intentionally unlinked from navigation for now.
+  const lastSessionEl = (
+    <View style={styles.section}>
+      <SectionHeader title="Last Session" />
+      {m.last ? (
+        <WorkoutSummaryCard
+          session={m.last}
+          pctIncrease={m.lastPct}
+          onPress={() => navigation.navigate('WorkoutDetail', { sessionId: m.last!.id })}
+          onRepeat={() => repeatSession(m.last!.id)}
+        />
+      ) : (
+        <EmptyState
+          icon="barbell-outline"
+          title="No workouts yet"
+          message="Start your first session and it lands here."
+          actionLabel="Start Workout"
+          onAction={goToWorkout}
+        />
+      )}
+    </View>
+  );
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Masthead */}
-        <View style={styles.masthead}>
-          <View style={styles.mastheadRow}>
-            <Text style={styles.eyebrow}>{fullDate(Date.now()).toUpperCase()}</Text>
-            <Pressable
-              onPress={() => setStreakOpen(true)}
-              hitSlop={8}
-              style={({ pressed }) => [styles.streakChip, pressed && styles.streakChipPressed]}
-            >
-              <Ionicons name="flame" size={13} color={colors.primary} />
-              <Text style={styles.streakTag}>{m.streak}</Text>
-              <View style={styles.streakDivider} />
-              <Text style={styles.streakWeek}>{week.done}/{week.goal} WK</Text>
-            </Pressable>
-          </View>
-          <Text style={styles.greeting}>
-            {GREETING[timeOfDay()].toUpperCase()},{'\n'}
-            {settings.userName.toUpperCase()}
-          </Text>
-          <Text style={styles.subtitle}>{subtitle}</Text>
-        </View>
-
-        {/* CTAs */}
-        <View style={styles.ctas}>
-          <PrimaryButton
-            title={activeWorkout ? 'Resume Workout' : 'Start Workout'}
-            icon={activeWorkout ? 'play' : 'add'}
-            onPress={goToWorkout}
-            fullWidth
-          />
-          {m.last ? (
-            <PrimaryButton title="Repeat Last Session" icon="refresh" variant="secondary" size="md" onPress={onRepeat} fullWidth />
-          ) : null}
-        </View>
-
-        {/* Train next — suggested session from the user's preferred split */}
-        {trainNext ? (
-          <Pressable onPress={goToWorkout} style={({ pressed }) => [styles.trainNext, pressed && styles.trainNextPressed]}>
-            <View style={styles.trainNextIcon}>
-              <Ionicons name="barbell" size={18} color={colors.bg} />
-            </View>
-            <View style={styles.flex}>
-              <Text style={styles.trainNextLabel}>TRAIN NEXT · {trainNext.label.toUpperCase()}</Text>
-              <Text style={styles.trainNextName}>{trainNext.day.name.toUpperCase()}</Text>
-              <Text style={styles.trainNextGroups} numberOfLines={1}>
-                {trainNext.day.groups.join(' · ').toUpperCase()}
-              </Text>
-            </View>
-            <Ionicons name="arrow-forward" size={18} color={colors.primary} />
-          </Pressable>
-        ) : null}
-
-        {/* Feature: progressive-overload increase this week */}
-        <Card style={styles.feature}>
-          <Text style={styles.cardLabel}>INCREASE THIS WEEK</Text>
-          {m.hasComparison ? (
-            <>
-              <View style={styles.featureValueRow}>
-                <Text style={[styles.featureValue, { color: weekPctColor }]}>
-                  {m.weekPct === null ? '—' : signedPct(m.weekPct)}
-                </Text>
-                {m.weekPct !== null ? <Text style={styles.featureUnit}>avg overload</Text> : null}
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <PageWidth style={styles.page}>
+          {isDesktop ? (
+            <View style={styles.desktopGrid}>
+              <View style={styles.mainCol}>
+                {mastheadEl}
+                {ctasEl}
+                {trainNextEl}
+                {featureEl}
+                {muscleFocusEl}
+                {nextTargetEl}
               </View>
-              <Text style={styles.featureCaption}>
-                {m.weekPct === null
-                  ? 'No comparable lifts logged yet this week.'
-                  : 'Average per-exercise gain vs your previous sessions.'}
-              </Text>
-              <PercentChart data={m.daily} height={104} style={styles.featureChart} />
-            </>
+              <View style={styles.sideCol}>
+                {bodyEl}
+                {mostImprovedEl}
+                {lastSessionEl}
+              </View>
+            </View>
           ) : (
-            <View style={styles.featureEmpty}>
-              <Ionicons name="trending-up" size={22} color={colors.primary} />
-              <Text style={styles.featureEmptyText}>
-                First logged session — comparison starts next time you train these lifts.
-              </Text>
+            <View style={styles.stack}>
+              {mastheadEl}
+              {ctasEl}
+              {trainNextEl}
+              {featureEl}
+              {bodyEl}
+              {mostImprovedEl}
+              {muscleFocusEl}
+              {nextTargetEl}
+              {lastSessionEl}
             </View>
           )}
-        </Card>
-
-        {/* Body — current weight, BMI and progress toward the target weight */}
-        {bodyWeight ? (
-          <Card>
-            <Text style={styles.cardLabel}>BODY</Text>
-            <View style={styles.bodyRow}>
-              <View style={styles.bodyStat}>
-                <Text style={styles.bodyValue}>{formatWeight(bodyWeight)}<Text style={styles.bodyUnit}> {unit}</Text></Text>
-                <Text style={styles.bodyStatLabel}>CURRENT</Text>
-              </View>
-              {bmiValue !== null ? (
-                <View style={styles.bodyStat}>
-                  <Text style={styles.bodyValue}>{bmiValue.toFixed(1)}</Text>
-                  <Text style={styles.bodyStatLabel}>BMI · {bmiLabel(bmiValue).toUpperCase()}</Text>
-                </View>
-              ) : null}
-            </View>
-            {target ? (
-              <Text style={styles.bodyTarget}>
-                {target.direction === 'reached'
-                  ? '🎯 You’re at your target weight.'
-                  : `${formatWeight(target.delta)} ${unit} to ${target.direction} to reach your target.`}
-              </Text>
-            ) : (
-              <Text style={styles.bodyTarget}>Set a target weight in Settings to track progress here.</Text>
-            )}
-          </Card>
-        ) : null}
-
-        {/* Most improved — wide editorial card */}
-        <Card>
-          <Text style={styles.cardLabel}>MOST IMPROVED LIFT</Text>
-          {m.improved ? (
-            <>
-              <View style={styles.improvedRow}>
-                <Text style={styles.improvedName}>{m.improved.name.toUpperCase()}</Text>
-                <Text style={styles.improvedDelta}>+{formatWeight(m.improved.deltaWeight)} KG</Text>
-              </View>
-              <Text style={styles.improvedLine}>
-                Up {Math.round(m.improved.deltaPct)}% on your top set since you started tracking it.
-              </Text>
-            </>
-          ) : (
-            <Text style={styles.improvedLine}>Log a lift twice and your biggest gain shows up here.</Text>
-          )}
-        </Card>
-
-        {/* Muscle focus — 6x7 weekly block grid */}
-        <View style={styles.section}>
-          <SectionHeader title="Muscle Focus" subtitle="Groups trained by day · this week" />
-          {focus ? (
-            <View style={[styles.focusNudge, focus.trainedThisWeek ? styles.focusNudgeOk : styles.focusNudgeWarn]}>
-              <Ionicons
-                name={focus.trainedThisWeek ? 'checkmark-circle' : 'alert-circle'}
-                size={15}
-                color={focus.trainedThisWeek ? colors.primary : colors.text}
-              />
-              <Text style={styles.focusNudgeText}>
-                {focus.trainedThisWeek
-                  ? `Focus on track — ${focus.group} trained this week.`
-                  : `Your focus is ${focus.group} — not trained yet this week.`}
-              </Text>
-            </View>
-          ) : null}
-          <Card>
-            {trainedThisWeek ? (
-              <>
-                <View style={styles.gridHeader}>
-                  <View style={styles.gridNameSpacer} />
-                  <View style={styles.gridBlocks}>
-                    {DAY_LETTERS.map((d, i) => (
-                      <Text
-                        key={i}
-                        style={[styles.gridDayLetter, i === todayCol && styles.gridDayLetterToday]}
-                      >
-                        {d}
-                      </Text>
-                    ))}
-                  </View>
-                </View>
-                {m.muscleGrid.map((row) => (
-                  <View key={row.group} style={styles.gridRow}>
-                    <Text style={styles.gridName}>{row.group.toUpperCase()}</Text>
-                    <View style={styles.gridBlocks}>
-                      {row.days.map((on, i) => (
-                        <View
-                          key={i}
-                          style={[styles.block, on ? styles.blockOn : styles.blockOff]}
-                        />
-                      ))}
-                    </View>
-                  </View>
-                ))}
-              </>
-            ) : (
-              <EmptyState icon="grid-outline" title="No sessions this week" message="Train a group and its week lights up here." />
-            )}
-          </Card>
-        </View>
-
-        {/* Next target — progression coaching insight */}
-        <View style={styles.section}>
-          <SectionHeader title="Next Target" subtitle="The lift most ready to progress" />
-          <Card>
-            <Text style={styles.cardLabel}>READY TO PROGRESS</Text>
-            {m.target ? (
-              <>
-                <Text style={styles.targetName}>{m.target.name.toUpperCase()}</Text>
-                <View style={styles.targetCueRow}>
-                  <Ionicons name="arrow-up-circle" size={16} color={colors.primary} />
-                  <Text style={styles.targetCue}>
-                    Try +{formatWeight(targetIncrement)}kg next time
-                  </Text>
-                </View>
-                <Text style={styles.targetMeta}>
-                  Last top set · {formatWeight(m.target.topWeight)}kg × {m.target.reps} reps
-                </Text>
-                {reps ? (
-                  <Text style={styles.targetGuidance}>{reps.note}</Text>
-                ) : null}
-              </>
-            ) : (
-              <Text style={styles.improvedLine}>
-                Log a lift twice without dropping volume and your next target appears here.
-              </Text>
-            )}
-          </Card>
-        </View>
-
-        {/* Last session — History is intentionally unlinked from navigation for now. */}
-        <View style={styles.section}>
-          <SectionHeader title="Last Session" />
-          {m.last ? (
-            <WorkoutSummaryCard
-              session={m.last}
-              pctIncrease={m.lastPct}
-              onPress={() => navigation.navigate('WorkoutDetail', { sessionId: m.last!.id })}
-              onRepeat={() => repeatSession(m.last!.id)}
-            />
-          ) : (
-            <EmptyState
-              icon="barbell-outline"
-              title="No workouts yet"
-              message="Start your first session and it lands here."
-              actionLabel="Start Workout"
-              onAction={goToWorkout}
-            />
-          )}
-        </View>
+        </PageWidth>
       </ScrollView>
 
       <StreakCalendarModal visible={streakOpen} onClose={() => setStreakOpen(false)} sessions={workouts} weeklyGoal={settings.weeklyGoal} />
@@ -361,8 +410,13 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
-  content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.xl },
+  safe: { flex: 1, backgroundColor: colors.bg, alignItems: 'center' },
+  scrollContent: { width: '100%', alignItems: 'center', paddingBottom: spacing.xxl },
+  page: { paddingHorizontal: spacing.lg },
+  stack: { gap: spacing.xl },
+  desktopGrid: { flexDirection: 'row', gap: spacing.xl, alignItems: 'flex-start' },
+  mainCol: { flex: 1, gap: spacing.xl, minWidth: 0 },
+  sideCol: { width: 340, gap: spacing.xl },
 
   masthead: { marginTop: spacing.sm },
   mastheadRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

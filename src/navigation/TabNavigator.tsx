@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { BottomTabBar, createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import React from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useResponsive } from '../hooks/useResponsive';
 import ExercisesScreen from '../screens/ExercisesScreen';
 // History screen is intentionally preserved but currently unlinked from
 // navigation. The file (HistoryScreen.tsx) remains in the project and may be
@@ -12,6 +13,7 @@ import ProgressScreen from '../screens/ProgressScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import WorkoutScreen from '../screens/WorkoutScreen';
 import { colors, family } from '../theme';
+import SidebarNav from './SidebarNav';
 import { TabParamList } from './types';
 
 const Tab = createBottomTabNavigator<TabParamList>();
@@ -28,11 +30,14 @@ const ICONS: Record<keyof TabParamList, { on: IconName; off: IconName }> = {
 
 export default function TabNavigator() {
   const insets = useSafeAreaInsets();
+  const { isDesktop } = useResponsive();
 
   return (
     <Tab.Navigator
+      tabBar={(props) => (isDesktop ? <SidebarNav {...props} /> : <BottomTabBar {...props} />)}
       screenOptions={({ route }) => ({
         headerShown: false,
+        tabBarPosition: isDesktop ? 'left' : 'bottom',
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textFaint,
         tabBarShowLabel: true,
