@@ -4,6 +4,7 @@ import React from 'react';
 import AddExerciseScreen from '../screens/AddExerciseScreen';
 import ExerciseDetailScreen from '../screens/ExerciseDetailScreen';
 import ExercisePickerScreen from '../screens/ExercisePickerScreen';
+import SplitEditorScreen from '../screens/SplitEditorScreen';
 import TemplateEditorScreen from '../screens/TemplateEditorScreen';
 import WorkoutCompleteScreen from '../screens/WorkoutCompleteScreen';
 import WorkoutDetailScreen from '../screens/WorkoutDetailScreen';
@@ -29,6 +30,7 @@ export default function RootNavigator() {
         <Stack.Screen name="ExerciseDetail" component={ExerciseDetailScreen} />
         <Stack.Screen name="WorkoutDetail" component={WorkoutDetailScreen} />
         <Stack.Screen name="TemplateEditor" component={TemplateEditorScreen} />
+        <Stack.Screen name="SplitEditor" component={SplitEditorScreen} />
       </Stack.Group>
 
       <Stack.Screen

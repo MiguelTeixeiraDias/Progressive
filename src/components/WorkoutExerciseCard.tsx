@@ -77,10 +77,12 @@ export default function WorkoutExerciseCard({
 
       <PrimaryButton title="Add Set" icon="add" variant="ghost" size="md" fullWidth onPress={onAddSet} />
 
+      {/* Outlined so it reads as a per-exercise toggle, distinct from the single
+          filled "Finish Workout" CTA at the bottom of the screen. */}
       <PrimaryButton
         title={isComplete ? 'Completed — Tap to Reopen' : 'Complete Exercise'}
-        icon={isComplete ? 'checkmark-done' : 'checkmark'}
-        variant={isComplete ? 'secondary' : 'primary'}
+        icon={isComplete ? 'checkmark-circle' : 'checkmark'}
+        variant={isComplete ? 'ghost' : 'secondary'}
         size="md"
         fullWidth
         onPress={onComplete}

@@ -108,6 +108,19 @@ export type FitnessGoal =
   | 'Improve fitness'
   | 'General health';
 
+/** One training day within a user-defined split: a name + target muscle groups. */
+export interface SplitDayDef {
+  name: string;
+  muscleGroups: MuscleGroup[];
+}
+
+/** A user-created training split (used when preferredSplit is 'Custom'). */
+export interface CustomSplit {
+  id: string;
+  name: string;
+  days: SplitDayDef[];
+}
+
 /**
  * Local-only training profile. There is no auth/database yet — these values are
  * persisted on-device and structured so they can be lifted to real user accounts
@@ -154,6 +167,10 @@ export interface Settings {
    * library. Custom exercises are deleted outright instead of listed here.
    */
   hiddenExerciseIds: string[];
+  /** User-defined splits; the active one drives the Home "Train Next" suggestion. */
+  customSplits: CustomSplit[];
+  /** Id of the custom split used when preferredSplit is 'Custom'. */
+  activeSplitId?: string;
 }
 
 /** Returned by finishWorkout() to power the celebration screen. */

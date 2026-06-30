@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { KPICard, MuscleGroupBadge, PersonalBestBadge, PrimaryButton } from '../components';
 import { RootStackScreenProps } from '../navigation/types';
 import { colors, family, font, radius, spacing } from '../theme';
-import { formatDuration, formatVolume, formatWeight, signedPct } from '../utils/format';
+import { formatDuration, formatWeight, signedPct } from '../utils/format';
 
 export default function WorkoutCompleteScreen({ route, navigation }: RootStackScreenProps<'WorkoutComplete'>) {
   const s = route.params.summary;
@@ -39,13 +39,10 @@ export default function WorkoutCompleteScreen({ route, navigation }: RootStackSc
             <KPICard style={styles.gridItem} label="Duration" value={formatDuration(s.durationSec)} />
             <KPICard
               style={styles.gridItem}
-              label="Volume"
-              value={s.totalVolume}
-              unit="kg"
-              accent={colors.primary}
-              countUp
-              format={formatVolume}
-              trend={s.volumeChangePct}
+              label="Increase"
+              value={s.volumeChangePct === null ? '—' : signedPct(s.volumeChangePct)}
+              accent={s.volumeChangePct !== null && s.volumeChangePct >= 0 ? colors.primary : colors.text}
+              caption="VS LAST SESSION"
             />
           </View>
           <View style={styles.gridRow}>
@@ -65,7 +62,7 @@ export default function WorkoutCompleteScreen({ route, navigation }: RootStackSc
         {s.volumeChangePct !== null && s.volumeChangePct > 0 ? (
           <View style={styles.banner}>
             <Ionicons name="arrow-up" size={16} color={colors.primary} />
-            <Text style={styles.bannerText}>VOLUME UP {signedPct(s.volumeChangePct)} VS LAST SESSION</Text>
+            <Text style={styles.bannerText}>UP {signedPct(s.volumeChangePct)} VS LAST SESSION</Text>
           </View>
         ) : null}
 

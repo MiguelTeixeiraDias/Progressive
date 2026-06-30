@@ -4,6 +4,7 @@
 
 import {
   BodyWeightEntry,
+  CustomSplit,
   Exercise,
   MuscleGroup,
   SetEntry,
@@ -32,6 +33,8 @@ export interface ProfileRow {
   height: number | null;
   featured_exercises: string[] | null;
   hidden_exercise_ids: string[] | null;
+  custom_splits: CustomSplit[] | null;
+  active_split_id: string | null;
 }
 
 export interface ExerciseRow {
@@ -185,6 +188,8 @@ export function rowToSettings(r: ProfileRow): Settings {
     },
     featuredExercises: r.featured_exercises ?? [],
     hiddenExerciseIds: r.hidden_exercise_ids ?? [],
+    customSplits: r.custom_splits ?? [],
+    activeSplitId: r.active_split_id ?? undefined,
   };
 }
 
@@ -206,6 +211,8 @@ export function settingsToProfileRow(userId: string, s: Settings): ProfileRow & 
     height: s.bodyStats.height ?? null,
     featured_exercises: s.featuredExercises,
     hidden_exercise_ids: s.hiddenExerciseIds ?? [],
+    custom_splits: s.customSplits ?? [],
+    active_split_id: s.activeSplitId ?? null,
   };
 }
 

@@ -206,6 +206,8 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
   const totalSets = active.exercises.reduce((n, we) => n + we.sets.length, 0);
   const doneSets = active.exercises.reduce((n, we) => n + we.sets.filter((s) => s.completed).length, 0);
   const nameValid = active.name.trim().length > 0;
+  // A workout can only be finished once every set is completed.
+  const allSetsComplete = totalSets > 0 && doneSets === totalSets;
 
   const onCompleteExercise = (weId: string) => {
     const we = active.exercises.find((e) => e.id === weId);
@@ -219,8 +221,12 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
       showToast('NAME YOUR WORKOUT FIRST', colors.primary);
       return;
     }
-    if (doneSets === 0) {
+    if (totalSets === 0) {
       showToast('LOG AT LEAST ONE EXERCISE', colors.primary);
+      return;
+    }
+    if (!allSetsComplete) {
+      showToast(`COMPLETE ALL SETS FIRST · ${doneSets}/${totalSets}`, colors.primary);
       return;
     }
     const summary = finishWorkout();
@@ -293,10 +299,10 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
         <View style={styles.footer}>
           <PrimaryButton
             title="Finish Workout"
-            icon="checkmark-done"
+            icon="flag"
             onPress={handleFinish}
             fullWidth
-            disabled={doneSets === 0 || !nameValid}
+            disabled={!allSetsComplete || !nameValid}
           />
         </View>
       </KeyboardAvoidingView>

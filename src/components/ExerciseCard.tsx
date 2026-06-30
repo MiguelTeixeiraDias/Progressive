@@ -14,6 +14,7 @@ interface ExerciseCardProps {
   exercise: Exercise;
   subtitle?: string | null;
   onPress?: () => void;
+  onLongPress?: () => void;
   trailingIcon?: IconName;
   trailingAccent?: string;
 }
@@ -23,11 +24,12 @@ export default function ExerciseCard({
   exercise,
   subtitle,
   onPress,
+  onLongPress,
   trailingIcon = 'chevron-forward',
   trailingAccent = colors.textFaint,
 }: ExerciseCardProps) {
   return (
-    <Card onPress={onPress} style={styles.card}>
+    <Card onPress={onPress} onLongPress={onLongPress} style={styles.card}>
       <View style={styles.row}>
         <View style={styles.monogram}>
           <MuscleGroupIcon group={exercise.muscleGroup} size={22} />
