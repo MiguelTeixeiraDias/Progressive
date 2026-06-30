@@ -2,8 +2,9 @@ import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { SetEntry, WorkoutExercise } from '../types';
+import { DropStage, SetEntry, WorkoutExercise } from '../types';
 import { colors, family, font, radius, spacing } from '../theme';
+import { formatClock } from '../utils/format';
 import Card from './Card';
 import MuscleGroupBadge from './MuscleGroupBadge';
 import PrimaryButton from './PrimaryButton';
@@ -11,34 +12,61 @@ import SetRow from './SetRow';
 
 interface WorkoutExerciseCardProps {
   exercise: WorkoutExercise;
-  previousSets?: { reps: number; weight: number }[] | null;
+  previousSets?: { reps: number; weight: number; durationSec?: number }[] | null;
+  /** Label shown when this card is part of a linked superset, e.g. "A1". */
+  supersetLabel?: string;
   onAddSet: () => void;
   onRemove: () => void;
   onComplete: () => void;
   onNotesChange: (notes: string) => void;
   onUpdateSet: (setId: string, patch: Partial<Pick<SetEntry, 'reps' | 'weight'>>) => void;
+  onUpdateDuration: (setId: string, durationSec: number) => void;
   onRemoveSet: (setId: string) => void;
+  onToggleDropSet: (setId: string) => void;
+  onAddDropStage: (setId: string) => void;
+  onUpdateDropStage: (setId: string, dropId: string, patch: Partial<Pick<DropStage, 'reps' | 'weight'>>) => void;
+  onRemoveDropStage: (setId: string, dropId: string) => void;
 }
 
 export default function WorkoutExerciseCard({
   exercise,
   previousSets,
+  supersetLabel,
   onAddSet,
   onRemove,
   onComplete,
   onNotesChange,
   onUpdateSet,
+  onUpdateDuration,
   onRemoveSet,
+  onToggleDropSet,
+  onAddDropStage,
+  onUpdateDropStage,
+  onRemoveDropStage,
 }: WorkoutExerciseCardProps) {
+  const cardio = exercise.muscleGroup === 'Cardio';
   const completedCount = exercise.sets.filter((s) => s.completed).length;
   const isComplete = exercise.sets.length > 0 && completedCount === exercise.sets.length;
+
+  const hintFor = (i: number) => {
+    const prev = previousSets && previousSets[i];
+    if (!prev) return null;
+    return cardio ? formatClock(prev.durationSec ?? 0) : `${prev.weight}kg × ${prev.reps}`;
+  };
 
   return (
     <Card style={[styles.card, isComplete && styles.cardComplete]}>
       {isComplete ? <View style={styles.completeBar} /> : null}
       <View style={styles.header}>
         <View style={styles.headerText}>
-          <Text style={styles.name}>{exercise.name}</Text>
+          <View style={styles.nameRow}>
+            {supersetLabel ? (
+              <View style={styles.supersetTag}>
+                <Text style={styles.supersetTagText}>{supersetLabel}</Text>
+              </View>
+            ) : null}
+            <Text style={styles.name}>{exercise.name}</Text>
+          </View>
           <View style={styles.metaRow}>
             <MuscleGroupBadge group={exercise.muscleGroup} size="sm" />
             <Text style={styles.meta}>{completedCount}/{exercise.sets.length} SETS</Text>
@@ -68,9 +96,15 @@ export default function WorkoutExerciseCard({
             key={set.id}
             index={i + 1}
             set={set}
-            previousHint={previousSets && previousSets[i] ? `${previousSets[i].weight}kg × ${previousSets[i].reps}` : null}
+            cardio={cardio}
+            previousHint={hintFor(i)}
             onChange={(patch) => onUpdateSet(set.id, patch)}
+            onChangeDuration={(durationSec) => onUpdateDuration(set.id, durationSec)}
             onRemove={exercise.sets.length > 1 ? () => onRemoveSet(set.id) : undefined}
+            onToggleDropSet={() => onToggleDropSet(set.id)}
+            onAddDropStage={() => onAddDropStage(set.id)}
+            onUpdateDropStage={(dropId, patch) => onUpdateDropStage(set.id, dropId, patch)}
+            onRemoveDropStage={(dropId) => onRemoveDropStage(set.id, dropId)}
           />
         ))}
       </View>
@@ -97,7 +131,17 @@ const styles = StyleSheet.create({
   completeBar: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, backgroundColor: colors.primary },
   header: { flexDirection: 'row', alignItems: 'flex-start' },
   headerText: { flex: 1 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   name: { color: colors.text, fontFamily: family.semibold, fontSize: font.h3 },
+  supersetTag: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: radius.xs,
+    backgroundColor: colors.primaryDim,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  supersetTagText: { color: colors.primary, fontFamily: family.bold, fontSize: font.tiny, letterSpacing: 0.5 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: 6 },
   meta: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 0.6 },
   completedTag: { color: colors.primary, fontFamily: family.semibold, fontSize: font.tiny, letterSpacing: 0.8 },

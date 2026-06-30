@@ -16,6 +16,7 @@ import {
 } from '../lib/sync';
 import {
   BodyWeightEntry,
+  DropStage,
   Exercise,
   MuscleGroup,
   NewPR,
@@ -29,7 +30,7 @@ import {
 } from '../types';
 import { dayKey } from '../utils/date';
 import { uid } from '../utils/id';
-import { computePRs, epley1RM, lastPerformance, lastWorkout } from '../utils/stats';
+import { computePRs, epley1RM, lastPerformance, lastWorkout, setVolume } from '../utils/stats';
 
 interface StoreState {
   // persisted data
@@ -92,9 +93,25 @@ interface StoreState {
     setId: string,
     patch: Partial<Pick<SetEntry, 'reps' | 'weight'>>,
   ) => void;
+  updateSetDuration: (workoutExerciseId: string, setId: string, durationSec: number) => void;
   toggleSetComplete: (workoutExerciseId: string, setId: string) => void;
   completeExercise: (workoutExerciseId: string) => void;
   removeSet: (workoutExerciseId: string, setId: string) => void;
+
+  // drop sets
+  toggleDropSet: (workoutExerciseId: string, setId: string) => void;
+  addDropStage: (workoutExerciseId: string, setId: string) => void;
+  updateDropStage: (
+    workoutExerciseId: string,
+    setId: string,
+    dropId: string,
+    patch: Partial<Pick<DropStage, 'reps' | 'weight'>>,
+  ) => void;
+  removeDropStage: (workoutExerciseId: string, setId: string, dropId: string) => void;
+
+  // supersets
+  linkSuperset: (workoutExerciseIds: string[]) => void;
+  unlinkSuperset: (supersetId: string) => void;
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -143,6 +160,32 @@ function mapExercise(
       we.id === workoutExerciseId ? fn(we) : we,
     ),
   };
+}
+
+/** Immutably update one set inside one exercise of the active workout. */
+function mapSet(
+  active: WorkoutSession,
+  workoutExerciseId: string,
+  setId: string,
+  fn: (s: SetEntry) => SetEntry,
+): WorkoutSession {
+  return mapExercise(active, workoutExerciseId, (we) => ({
+    ...we,
+    sets: we.sets.map((s) => (s.id === setId ? fn(s) : s)),
+  }));
+}
+
+/** A fresh set, shaped for cardio (timer) or strength (weight/reps) exercises. */
+function defaultSet(muscleGroup: MuscleGroup): SetEntry {
+  if (muscleGroup === 'Cardio') {
+    return { id: uid('set'), reps: 0, weight: 0, durationSec: 0, completed: false };
+  }
+  return { id: uid('set'), reps: 10, weight: 20, completed: false };
+}
+
+/** Default weight for a new drop stage — ~20% lighter than the stage before it. */
+function nextDropWeight(weight: number): number {
+  return Math.max(0, Math.round(((weight * 0.8) / 2.5)) * 2.5);
 }
 
 export const useStore = create<StoreState>()(
@@ -349,6 +392,7 @@ export const useStore = create<StoreState>()(
             id: uid('set'),
             reps: s.reps,
             weight: s.weight,
+            durationSec: s.durationSec !== undefined ? 0 : undefined,
             completed: false,
           })),
         }));
@@ -369,9 +413,10 @@ export const useStore = create<StoreState>()(
                   id: uid('set'),
                   reps: s.reps,
                   weight: s.weight,
+                  durationSec: s.durationSec !== undefined ? 0 : undefined,
                   completed: false,
                 }))
-              : [{ id: uid('set'), reps: 10, weight: 20, completed: false }];
+              : [defaultSet(te.muscleGroup)];
           return {
             id: uid('we'),
             exerciseId: te.exerciseId,
@@ -410,7 +455,7 @@ export const useStore = create<StoreState>()(
           .filter((we) => we.sets.length > 0);
 
         const totalVolume = exercises.reduce(
-          (sum, we) => sum + we.sets.reduce((v, s) => v + s.reps * s.weight, 0),
+          (sum, we) => sum + we.sets.reduce((v, s) => v + setVolume(s), 0),
           0,
         );
         const durationSec = Math.max(1, Math.round((now - active.startedAt) / 1000));
@@ -488,9 +533,10 @@ export const useStore = create<StoreState>()(
                 id: uid('set'),
                 reps: s.reps,
                 weight: s.weight,
+                durationSec: s.durationSec !== undefined ? 0 : undefined,
                 completed: false,
               }))
-            : [{ id: uid('set'), reps: 10, weight: 20, completed: false }];
+            : [defaultSet(exercise.muscleGroup)];
 
         const we: WorkoutExercise = {
           id: uid('we'),
@@ -506,12 +552,18 @@ export const useStore = create<StoreState>()(
       removeWorkoutExercise: (workoutExerciseId) => {
         const active = get().activeWorkout;
         if (!active) return;
-        set({
-          activeWorkout: {
-            ...active,
-            exercises: active.exercises.filter((we) => we.id !== workoutExerciseId),
-          },
-        });
+        const removed = active.exercises.find((we) => we.id === workoutExerciseId);
+        let exercises = active.exercises.filter((we) => we.id !== workoutExerciseId);
+        // A "superset" of one is meaningless — dissolve it if removal left a lone member.
+        if (removed?.supersetId) {
+          const remaining = exercises.filter((we) => we.supersetId === removed.supersetId);
+          if (remaining.length === 1) {
+            exercises = exercises.map((we) =>
+              we.id === remaining[0].id ? { ...we, supersetId: undefined } : we,
+            );
+          }
+        }
+        set({ activeWorkout: { ...active, exercises } });
       },
 
       setExerciseNotes: (workoutExerciseId, notes) => {
@@ -531,9 +583,12 @@ export const useStore = create<StoreState>()(
         set({
           activeWorkout: mapExercise(active, workoutExerciseId, (we) => {
             const last = we.sets[we.sets.length - 1];
-            const next: SetEntry = last
-              ? { id: uid('set'), reps: last.reps, weight: last.weight, completed: false }
-              : { id: uid('set'), reps: 10, weight: 20, completed: false };
+            const next: SetEntry =
+              last && we.muscleGroup === 'Cardio'
+                ? { id: uid('set'), reps: 0, weight: 0, durationSec: 0, completed: false }
+                : last
+                  ? { id: uid('set'), reps: last.reps, weight: last.weight, completed: false }
+                  : defaultSet(we.muscleGroup);
             return { ...we, sets: [...we.sets, next] };
           }),
         });
@@ -556,6 +611,17 @@ export const useStore = create<StoreState>()(
                   }
                 : s,
             ),
+          })),
+        });
+      },
+
+      updateSetDuration: (workoutExerciseId, setId, durationSec) => {
+        const active = get().activeWorkout;
+        if (!active) return;
+        set({
+          activeWorkout: mapSet(active, workoutExerciseId, setId, (s) => ({
+            ...s,
+            durationSec: Math.max(0, Math.round(durationSec)),
           })),
         });
       },
@@ -597,6 +663,105 @@ export const useStore = create<StoreState>()(
             ...we,
             sets: we.sets.filter((s) => s.id !== setId),
           })),
+        });
+      },
+
+      toggleDropSet: (workoutExerciseId, setId) => {
+        const active = get().activeWorkout;
+        if (!active) return;
+        set({
+          activeWorkout: mapSet(active, workoutExerciseId, setId, (s) =>
+            s.drops
+              ? { ...s, drops: undefined }
+              : {
+                  ...s,
+                  drops: [{ id: uid('drop'), reps: s.reps, weight: nextDropWeight(s.weight) }],
+                },
+          ),
+        });
+      },
+
+      addDropStage: (workoutExerciseId, setId) => {
+        const active = get().activeWorkout;
+        if (!active) return;
+        set({
+          activeWorkout: mapSet(active, workoutExerciseId, setId, (s) => {
+            const last = s.drops?.[s.drops.length - 1];
+            const stage: DropStage = last
+              ? { id: uid('drop'), reps: last.reps, weight: nextDropWeight(last.weight) }
+              : { id: uid('drop'), reps: s.reps, weight: nextDropWeight(s.weight) };
+            return { ...s, drops: [...(s.drops ?? []), stage] };
+          }),
+        });
+      },
+
+      updateDropStage: (workoutExerciseId, setId, dropId, patch) => {
+        const active = get().activeWorkout;
+        if (!active) return;
+        set({
+          activeWorkout: mapSet(active, workoutExerciseId, setId, (s) => ({
+            ...s,
+            drops: s.drops?.map((d) =>
+              d.id === dropId
+                ? {
+                    ...d,
+                    ...patch,
+                    reps: patch.reps !== undefined ? Math.max(0, patch.reps) : d.reps,
+                    weight: patch.weight !== undefined ? Math.max(0, patch.weight) : d.weight,
+                  }
+                : d,
+            ),
+          })),
+        });
+      },
+
+      removeDropStage: (workoutExerciseId, setId, dropId) => {
+        const active = get().activeWorkout;
+        if (!active) return;
+        set({
+          activeWorkout: mapSet(active, workoutExerciseId, setId, (s) => {
+            const drops = s.drops?.filter((d) => d.id !== dropId);
+            return { ...s, drops: drops?.length ? drops : undefined };
+          }),
+        });
+      },
+
+      linkSuperset: (workoutExerciseIds) => {
+        const active = get().activeWorkout;
+        if (!active || workoutExerciseIds.length < 2) return;
+        const idSet = new Set(workoutExerciseIds);
+        const supersetId = uid('ss');
+        const firstIndex = active.exercises.findIndex((we) => idSet.has(we.id));
+        if (firstIndex === -1) return;
+
+        // Stamp the shared id, then pull members together (in selection order) at
+        // the position of the first member, so they render as one contiguous
+        // group while everyone else keeps their relative order.
+        const members = workoutExerciseIds
+          .map((id) => active.exercises.find((we) => we.id === id))
+          .filter((we): we is WorkoutExercise => !!we)
+          .map((we) => ({ ...we, supersetId }));
+        const others = active.exercises.filter((we) => !idSet.has(we.id));
+        const insertAt = active.exercises.slice(0, firstIndex).filter((we) => !idSet.has(we.id)).length;
+
+        set({
+          activeWorkout: {
+            ...active,
+            exercises: [...others.slice(0, insertAt), ...members, ...others.slice(insertAt)],
+          },
+        });
+      },
+
+      unlinkSuperset: (supersetId) => {
+        const active = get().activeWorkout;
+        if (!active) return;
+        set({
+          activeWorkout: {
+            ...active,
+            exercises: active.exercises.map((we) =>
+              we.supersetId === supersetId ? { ...we, supersetId: undefined } : we,
+            ),
+          },
         });
       },
     }),

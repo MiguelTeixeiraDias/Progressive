@@ -112,13 +112,18 @@ export function displayText(size: number, letterSpacing = 0): TextStyle {
   };
 }
 
-/** Muscle visualizations stay monochrome (bone); emphasis comes from lime + borders. */
-export const muscleColor = colors.text;
+/**
+ * Muted, desaturated per-category accents — used sparingly as small tints
+ * (icon glyphs, badge/monogram borders, the muscle-focus grid) so categories
+ * read as distinct at a glance without competing with the acid-lime primary
+ * or diluting the strict bg/lime/bone identity used everywhere else.
+ */
 export const muscleColors: Record<MuscleGroup, string> = {
-  Chest: muscleColor,
-  Back: muscleColor,
-  Shoulders: muscleColor,
-  Legs: muscleColor,
-  Arms: muscleColor,
-  Core: muscleColor,
+  Chest: '#FF8A65',
+  Back: '#4FC3F7',
+  Shoulders: '#BA68C8',
+  Legs: '#81C784',
+  Arms: '#FFD54F',
+  Core: '#F06292',
+  Cardio: '#EF5350',
 };

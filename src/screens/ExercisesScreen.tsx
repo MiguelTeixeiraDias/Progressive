@@ -10,6 +10,7 @@ import { useStore } from '../store/useStore';
 import { Exercise } from '../types';
 import { colors, family, font, layout, radius, spacing } from '../theme';
 import { relativeDay } from '../utils/date';
+import { formatClock } from '../utils/format';
 import { lastPerformance } from '../utils/stats';
 
 export default function ExercisesScreen({ navigation }: TabScreenProps<'Exercises'>) {
@@ -39,6 +40,10 @@ export default function ExercisesScreen({ navigation }: TabScreenProps<'Exercise
   const subtitleFor = (ex: Exercise) => {
     const prev = lastPerformance(workouts, ex.id);
     if (!prev || prev.sets.length === 0) return null;
+    if (ex.muscleGroup === 'Cardio') {
+      const top = prev.sets.reduce((a, b) => ((b.durationSec ?? 0) > (a.durationSec ?? 0) ? b : a));
+      return `${formatClock(top.durationSec ?? 0)} · ${relativeDay(prev.date)}`;
+    }
     const top = prev.sets.reduce((a, b) => (b.weight > a.weight ? b : a));
     return `${top.weight}kg × ${top.reps} · ${relativeDay(prev.date)}`;
   };
@@ -46,6 +51,8 @@ export default function ExercisesScreen({ navigation }: TabScreenProps<'Exercise
   const isSelected = (id: string) => selected.includes(id);
   const toggle = (id: string) =>
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  const allSelected = data.length > 0 && selected.length === data.length;
+  const toggleSelectAll = () => setSelected(allSelected ? [] : data.map((e) => e.id));
 
   const enterSelect = (id?: string) => {
     setSelectMode(true);
@@ -81,9 +88,16 @@ export default function ExercisesScreen({ navigation }: TabScreenProps<'Exercise
         <View style={styles.head}>
           <View style={styles.headRow}>
             <Text style={styles.title}>EXERCISES</Text>
-            <Pressable onPress={selectMode ? exitSelect : () => enterSelect()} hitSlop={8} style={styles.headBtn}>
-              <Text style={styles.headBtnText}>{selectMode ? 'CANCEL' : 'SELECT'}</Text>
-            </Pressable>
+            <View style={styles.headBtns}>
+              {selectMode ? (
+                <Pressable onPress={toggleSelectAll} hitSlop={8} style={styles.headBtn}>
+                  <Text style={styles.headBtnText}>{allSelected ? 'CLEAR' : 'SELECT ALL'}</Text>
+                </Pressable>
+              ) : null}
+              <Pressable onPress={selectMode ? exitSelect : () => enterSelect()} hitSlop={8} style={styles.headBtn}>
+                <Text style={styles.headBtnText}>{selectMode ? 'CANCEL' : 'SELECT'}</Text>
+              </Pressable>
+            </View>
           </View>
           <Text style={styles.subtitle}>
             {selectMode ? `${selected.length} SELECTED` : 'TAP TO VIEW PROGRESS · LONG-PRESS TO SELECT'}
@@ -175,6 +189,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   head: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.md },
   headRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headBtns: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   title: { color: colors.text, fontFamily: family.display, fontSize: font.display, lineHeight: Math.ceil(font.display * 1.15), letterSpacing: 1, includeFontPadding: false },
   headBtn: { paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
   headBtnText: { color: colors.primary, fontFamily: family.semibold, fontSize: font.tiny, letterSpacing: 1.2 },

@@ -3,7 +3,8 @@ import React from 'react';
 import { StyleProp, StyleSheet, Text, View, ViewStyle } from 'react-native';
 
 import { Exercise } from '../types';
-import { colors, family, font, radius, spacing } from '../theme';
+import { colors, family, font, muscleColors, radius, spacing } from '../theme';
+import { withAlpha } from '../utils/color';
 import Card from './Card';
 import MuscleGroupBadge from './MuscleGroupBadge';
 import MuscleGroupIcon from './MuscleGroupIcon';
@@ -33,7 +34,7 @@ export default function ExerciseCard({
   return (
     <Card onPress={onPress} onLongPress={onLongPress} style={[styles.card, style]}>
       <View style={styles.row}>
-        <View style={styles.monogram}>
+        <View style={[styles.monogram, { borderColor: withAlpha(muscleColors[exercise.muscleGroup], 0.4) }]}>
           <MuscleGroupIcon group={exercise.muscleGroup} size={22} />
         </View>
 

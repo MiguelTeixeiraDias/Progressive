@@ -32,4 +32,9 @@ export const DEFAULT_EXERCISES: Exercise[] = [
   // Core
   { id: 'ex_plank', name: 'Plank', muscleGroup: 'Core', isCustom: false },
   { id: 'ex_hanging_leg_raise', name: 'Hanging Leg Raise', muscleGroup: 'Core', isCustom: false },
+  // Cardio
+  { id: 'ex_running', name: 'Running', muscleGroup: 'Cardio', isCustom: false },
+  { id: 'ex_cycling', name: 'Cycling', muscleGroup: 'Cardio', isCustom: false },
+  { id: 'ex_rowing', name: 'Rowing', muscleGroup: 'Cardio', isCustom: false },
+  { id: 'ex_jump_rope', name: 'Jump Rope', muscleGroup: 'Cardio', isCustom: false },
 ];

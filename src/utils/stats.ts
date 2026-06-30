@@ -24,7 +24,8 @@ import { formatWeight } from './format';
 // ---------------------------------------------------------------------------
 
 export function setVolume(s: SetEntry): number {
-  return s.reps * s.weight;
+  const dropsVolume = s.drops?.reduce((v, d) => v + d.reps * d.weight, 0) ?? 0;
+  return s.reps * s.weight + dropsVolume;
 }
 
 /** Epley estimated one-rep max. */
@@ -1003,7 +1004,7 @@ export function lastWorkout(sessions: WorkoutSession[]): WorkoutSession | null {
 
 export interface PreviousPerformance {
   date: number;
-  sets: { reps: number; weight: number }[];
+  sets: { reps: number; weight: number; durationSec?: number }[];
 }
 
 /** Most recent completed sets for an exercise — powers auto-suggested values. */
@@ -1016,7 +1017,10 @@ export function lastPerformance(
     if (!we) continue;
     const sets = we.sets.filter((s) => s.completed);
     if (sets.length === 0) continue;
-    return { date: sn.startedAt, sets: sets.map((s) => ({ reps: s.reps, weight: s.weight })) };
+    return {
+      date: sn.startedAt,
+      sets: sets.map((s) => ({ reps: s.reps, weight: s.weight, durationSec: s.durationSec })),
+    };
   }
   return null;
 }

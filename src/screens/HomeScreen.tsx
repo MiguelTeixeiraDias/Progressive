@@ -16,7 +16,7 @@ import {
 import { useResponsive } from '../hooks/useResponsive';
 import { TabScreenProps } from '../navigation/types';
 import { useStore } from '../store/useStore';
-import { colors, displayText, family, font, radius, spacing } from '../theme';
+import { colors, displayText, family, font, muscleColors, radius, spacing } from '../theme';
 import { withAlpha } from '../utils/color';
 import {
   activeSplitRotation,
@@ -300,7 +300,10 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
                   {row.days.map((on, i) => (
                     <View
                       key={i}
-                      style={[styles.block, on ? styles.blockOn : styles.blockOff]}
+                      style={[
+                        styles.block,
+                        on ? { backgroundColor: muscleColors[row.group] } : styles.blockOff,
+                      ]}
                     />
                   ))}
                 </View>
@@ -516,7 +519,6 @@ const styles = StyleSheet.create({
   gridDayLetter: { flex: 1, textAlign: 'center', color: colors.textFaint, fontFamily: family.medium, fontSize: font.tiny },
   gridDayLetterToday: { color: colors.text },
   block: { flex: 1, height: 18, borderRadius: radius.xs },
-  blockOn: { backgroundColor: colors.primary },
   blockOff: { backgroundColor: withAlpha(colors.text, 0.07), borderWidth: 1, borderColor: colors.border },
 
   // Next target

@@ -5,6 +5,7 @@
 import {
   BodyWeightEntry,
   CustomSplit,
+  DropStage,
   Exercise,
   MuscleGroup,
   SetEntry,
@@ -80,6 +81,7 @@ export interface WorkoutExerciseRow {
   muscle_group: string;
   notes: string | null;
   position: number;
+  superset_id: string | null;
 }
 
 export interface SetRow {
@@ -89,6 +91,8 @@ export interface SetRow {
   weight: number;
   completed: boolean;
   position: number;
+  duration_sec: number | null;
+  drops: DropStage[] | null;
 }
 
 const mg = (s: string): MuscleGroup => s as MuscleGroup;
@@ -153,6 +157,7 @@ export function rowsToWorkout(
         name: e.name,
         muscleGroup: mg(e.muscle_group),
         notes: e.notes ?? '',
+        supersetId: e.superset_id ?? undefined,
         sets: [...(setsByExercise.get(e.id) ?? [])]
           .sort((a, b) => a.position - b.position)
           .map<SetEntry>((s) => ({
@@ -160,6 +165,8 @@ export function rowsToWorkout(
             reps: s.reps,
             weight: s.weight,
             completed: s.completed,
+            durationSec: s.duration_sec ?? undefined,
+            drops: s.drops?.length ? s.drops : undefined,
           })),
       })),
   };
@@ -273,6 +280,7 @@ export function workoutExerciseRows(userId: string, w: WorkoutSession) {
     muscle_group: e.muscleGroup,
     notes: e.notes ?? null,
     position: i,
+    superset_id: e.supersetId ?? null,
   }));
 }
 
@@ -286,6 +294,8 @@ export function setRows(userId: string, w: WorkoutSession) {
       weight: s.weight,
       completed: s.completed,
       position: i,
+      duration_sec: s.durationSec ?? null,
+      drops: s.drops ?? [],
     })),
   );
 }

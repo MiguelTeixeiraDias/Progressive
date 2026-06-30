@@ -6,7 +6,8 @@ export type MuscleGroup =
   | 'Shoulders'
   | 'Legs'
   | 'Arms'
-  | 'Core';
+  | 'Core'
+  | 'Cardio';
 
 export const MUSCLE_GROUPS: MuscleGroup[] = [
   'Chest',
@@ -15,6 +16,7 @@ export const MUSCLE_GROUPS: MuscleGroup[] = [
   'Legs',
   'Arms',
   'Core',
+  'Cardio',
 ];
 
 export interface Exercise {
@@ -24,12 +26,21 @@ export interface Exercise {
   isCustom: boolean;
 }
 
+/** One drop-weight stage chained onto a strength set, performed back-to-back with no rest. */
+export interface DropStage {
+  id: string;
+  reps: number;
+  weight: number; // kilograms
+}
+
 /** A single set within a workout exercise. */
 export interface SetEntry {
   id: string;
   reps: number;
   weight: number; // kilograms
   completed: boolean;
+  durationSec?: number; // cardio sets: timed effort instead of weight/reps
+  drops?: DropStage[]; // drop-set stages performed immediately after this set
 }
 
 /** An exercise as performed inside a workout session. */
@@ -40,6 +51,8 @@ export interface WorkoutExercise {
   muscleGroup: MuscleGroup;
   notes: string;
   sets: SetEntry[];
+  /** Shared id linking exercises performed back-to-back as a superset. */
+  supersetId?: string;
 }
 
 export interface WorkoutSession {

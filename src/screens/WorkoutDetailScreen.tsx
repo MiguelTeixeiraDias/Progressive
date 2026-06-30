@@ -8,8 +8,8 @@ import { RootStackScreenProps } from '../navigation/types';
 import { useStore } from '../store/useStore';
 import { colors, family, font, layout, radius, spacing } from '../theme';
 import { fullDate } from '../utils/date';
-import { formatDuration, formatVolume } from '../utils/format';
-import { exerciseVolume, sessionSetCount } from '../utils/stats';
+import { formatClock, formatDuration, formatVolume } from '../utils/format';
+import { exerciseVolume, sessionSetCount, setVolume } from '../utils/stats';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -87,17 +87,27 @@ export default function WorkoutDetailScreen({ route, navigation }: RootStackScre
             ) : null}
 
             <View style={styles.sets}>
-              {we.sets.map((s, i) => (
-                <View key={s.id} style={styles.setRow}>
-                  <View style={styles.setBadge}>
-                    <Text style={styles.setBadgeText}>{i + 1}</Text>
+              {we.sets.map((s, i) => {
+                const isCardio = we.muscleGroup === 'Cardio';
+                return (
+                  <View key={s.id}>
+                    <View style={styles.setRow}>
+                      <View style={styles.setBadge}>
+                        <Text style={styles.setBadgeText}>{i + 1}</Text>
+                      </View>
+                      <Text style={styles.setMain}>
+                        {isCardio ? formatClock(s.durationSec ?? 0) : `${s.weight}kg × ${s.reps}`}
+                      </Text>
+                      {!isCardio ? <Text style={styles.setVol}>{formatVolume(setVolume(s))} kg</Text> : null}
+                    </View>
+                    {s.drops?.length ? (
+                      <Text style={styles.dropsLine}>
+                        ↳ DROPS · {s.drops.map((d) => `${d.weight}kg×${d.reps}`).join(', ')}
+                      </Text>
+                    ) : null}
                   </View>
-                  <Text style={styles.setMain}>
-                    {s.weight}kg × {s.reps}
-                  </Text>
-                  <Text style={styles.setVol}>{formatVolume(s.weight * s.reps)} kg</Text>
-                </View>
-              ))}
+                );
+              })}
             </View>
           </View>
         ))}
@@ -161,5 +171,6 @@ const styles = StyleSheet.create({
   setBadgeText: { color: colors.text, fontFamily: family.display, fontSize: font.label, includeFontPadding: false },
   setMain: { color: colors.text, fontFamily: family.medium, fontSize: font.lg, flex: 1 },
   setVol: { color: colors.textDim, fontFamily: family.body, fontSize: font.small },
+  dropsLine: { color: colors.textFaint, fontFamily: family.body, fontSize: font.tiny, marginTop: 4, marginLeft: 36 },
   footer: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.lg, borderTopWidth: 1, borderTopColor: colors.border },
 });
