@@ -10,7 +10,7 @@
  * Bump CACHE_VERSION on any change to this file to roll caches forward. Hashed
  * bundle URLs change every deploy, so stale-while-revalidate can't pin old code.
  */
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const CACHE_NAME = `progressive-${CACHE_VERSION}`;
 const APP_SHELL = '/';
 
