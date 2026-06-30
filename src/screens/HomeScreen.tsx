@@ -17,6 +17,7 @@ import { useStore } from '../store/useStore';
 import { colors, displayText, family, font, radius, spacing } from '../theme';
 import { withAlpha } from '../utils/color';
 import {
+  activeSplitRotation,
   bmi,
   bmiLabel,
   focusStatus,
@@ -83,10 +84,12 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
     [bodyWeightKg, settings.bodyStats.height],
   );
   const target = weightToTarget(settings.bodyStats.currentWeight, settings.goals.targetBodyWeight);
-  const trainNext = useMemo(
-    () => nextSplitSession(settings.profile.preferredSplit, workouts),
-    [settings.profile.preferredSplit, workouts],
-  );
+  const trainNext = useMemo(() => {
+    const rot = activeSplitRotation(settings);
+    if (!rot) return null;
+    const day = nextSplitSession(rot.days, workouts);
+    return day ? { label: rot.label, day } : null;
+  }, [settings, workouts]);
   const focus = useMemo(
     () => focusStatus(settings.goals.focusMuscleGroup, workouts),
     [settings.goals.focusMuscleGroup, workouts],
@@ -164,10 +167,10 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
               <Ionicons name="barbell" size={18} color={colors.bg} />
             </View>
             <View style={styles.flex}>
-              <Text style={styles.trainNextLabel}>TRAIN NEXT · {settings.profile.preferredSplit?.toUpperCase()}</Text>
-              <Text style={styles.trainNextName}>{trainNext.name.toUpperCase()}</Text>
+              <Text style={styles.trainNextLabel}>TRAIN NEXT · {trainNext.label.toUpperCase()}</Text>
+              <Text style={styles.trainNextName}>{trainNext.day.name.toUpperCase()}</Text>
               <Text style={styles.trainNextGroups} numberOfLines={1}>
-                {trainNext.groups.join(' · ').toUpperCase()}
+                {trainNext.day.groups.join(' · ').toUpperCase()}
               </Text>
             </View>
             <Ionicons name="arrow-forward" size={18} color={colors.primary} />

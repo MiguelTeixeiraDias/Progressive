@@ -2,6 +2,7 @@ import {
   ExperienceLevel,
   FitnessGoal,
   MuscleGroup,
+  Settings,
   TrainingSplit,
   WorkoutSession,
 } from '../types';
@@ -119,16 +120,30 @@ function sessionGroups(session: WorkoutSession): Set<MuscleGroup> {
 }
 
 /**
- * Suggests the next session to run for the user's split: finds the rotation day
- * that best matches the most recent workout, then returns the following day.
- * Returns null for Custom (or no split). With no history, suggests day one.
+ * Resolves the rotation that should drive "Train Next" for the user's preferred
+ * split: a built-in rotation, or the active user-defined split when 'Custom'.
+ * Returns the rotation plus a display label, or null if none is usable.
  */
-export function nextSplitSession(
-  split: TrainingSplit | undefined,
-  sessions: WorkoutSession[],
-): SplitDay | null {
+export function activeSplitRotation(settings: Settings): { label: string; days: SplitDay[] } | null {
+  const split = settings.profile.preferredSplit;
   if (!split) return null;
+  if (split === 'Custom') {
+    const splits = settings.customSplits ?? [];
+    const chosen = splits.find((s) => s.id === settings.activeSplitId) ?? splits[0];
+    if (!chosen || chosen.days.length === 0) return null;
+    return { label: chosen.name, days: chosen.days.map((d) => ({ name: d.name, groups: d.muscleGroups })) };
+  }
   const rotation = SPLIT_ROTATIONS[split];
+  if (!rotation || rotation.length === 0) return null;
+  return { label: split, days: rotation };
+}
+
+/**
+ * Suggests the next session to run from a rotation: finds the day that best
+ * matches the most recent workout, then returns the following day. With no
+ * history, suggests day one.
+ */
+export function nextSplitSession(rotation: SplitDay[] | null, sessions: WorkoutSession[]): SplitDay | null {
   if (!rotation || rotation.length === 0) return null;
   if (rotation.length === 1) return rotation[0];
 

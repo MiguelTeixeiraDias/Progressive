@@ -166,7 +166,7 @@ function toDraft(s: Settings): Draft {
   };
 }
 
-export default function SettingsScreen(_: TabScreenProps<'Settings'>) {
+export default function SettingsScreen({ navigation }: TabScreenProps<'Settings'>) {
   const settings = useStore((s) => s.settings);
   const updateSettings = useStore((s) => s.updateSettings);
   const logBodyWeight = useStore((s) => s.logBodyWeight);
@@ -270,6 +270,53 @@ export default function SettingsScreen(_: TabScreenProps<'Settings'>) {
                   onSelect={(v) => patch({ preferredSplit: v })}
                 />
               </Field>
+            </View>
+          </View>
+
+          {/* Custom splits — drive the Home "Train Next" suggestion when the
+              preferred split is set to Custom. */}
+          <View style={styles.section}>
+            <SectionHeader title="Custom Splits" subtitle="Build your own training rotation" />
+            <View style={styles.card}>
+              {settings.customSplits.length === 0 ? (
+                <Text style={styles.splitEmpty}>
+                  No custom splits yet. Create one, then set your Preferred Split to “Custom” to use it.
+                </Text>
+              ) : (
+                settings.customSplits.map((sp) => {
+                  const active = settings.activeSplitId === sp.id;
+                  return (
+                    <View key={sp.id} style={styles.splitRow}>
+                      <Pressable
+                        onPress={() => updateSettings({ activeSplitId: sp.id })}
+                        hitSlop={8}
+                        style={styles.splitRadio}
+                      >
+                        <Ionicons
+                          name={active ? 'radio-button-on' : 'radio-button-off'}
+                          size={20}
+                          color={active ? colors.primary : colors.textFaint}
+                        />
+                      </Pressable>
+                      <Pressable style={styles.flex} onPress={() => navigation.navigate('SplitEditor', { splitId: sp.id })}>
+                        <Text style={styles.splitName} numberOfLines={1}>{sp.name.toUpperCase()}</Text>
+                        <Text style={styles.splitMeta} numberOfLines={1}>
+                          {sp.days.length} {sp.days.length === 1 ? 'DAY' : 'DAYS'}{active ? ' · ACTIVE' : ''}
+                        </Text>
+                      </Pressable>
+                      <Ionicons name="create-outline" size={16} color={colors.textDim} />
+                    </View>
+                  );
+                })
+              )}
+              <PrimaryButton
+                title="New Split"
+                icon="add"
+                variant="secondary"
+                size="md"
+                fullWidth
+                onPress={() => navigation.navigate('SplitEditor')}
+              />
             </View>
           </View>
 
@@ -439,6 +486,21 @@ const styles = StyleSheet.create({
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   choice: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderRadius: radius.sm, borderWidth: 1 },
   choiceText: { fontFamily: family.semibold, fontSize: font.label, letterSpacing: 0.4 },
+  splitEmpty: { color: colors.textFaint, fontFamily: family.body, fontSize: font.small, lineHeight: 18 },
+  splitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: colors.card2,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+  },
+  splitRadio: { padding: 2 },
+  splitName: { color: colors.text, fontFamily: family.semibold, fontSize: font.body, letterSpacing: 0.3 },
+  splitMeta: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 0.8, marginTop: 2 },
   // Dropdown field + bottom-sheet picker
   select: {
     flexDirection: 'row',

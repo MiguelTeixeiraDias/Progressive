@@ -22,6 +22,8 @@ export type RootStackParamList = {
   WorkoutComplete: { summary: WorkoutSummary };
   /** Create (no id) or edit (with id) a reusable workout template. */
   TemplateEditor: { templateId?: string } | undefined;
+  /** Create (no id) or edit (with id) a custom training split. */
+  SplitEditor: { splitId?: string } | undefined;
 };
 
 /** Props for a tab screen that can also reach the root stack (modals). */
