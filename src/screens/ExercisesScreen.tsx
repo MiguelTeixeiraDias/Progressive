@@ -115,6 +115,7 @@ export default function ExercisesScreen({ navigation }: TabScreenProps<'Exercise
           numColumns={numColumns}
           columnWrapperStyle={numColumns > 1 ? styles.columnWrapper : undefined}
           contentContainerStyle={styles.list}
+          style={styles.flex}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}

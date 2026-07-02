@@ -76,6 +76,7 @@ export default function ExercisePickerScreen({ navigation }: RootStackScreenProp
           numColumns={numColumns}
           columnWrapperStyle={numColumns > 1 ? styles.columnWrapper : undefined}
           contentContainerStyle={styles.list}
+          style={styles.flex}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
@@ -100,6 +101,7 @@ export default function ExercisePickerScreen({ navigation }: RootStackScreenProp
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg, alignItems: 'center' },
   page: { flex: 1, width: '100%', maxWidth: layout.formMaxWidth },
+  flex: { flex: 1 },
   pageDesktop: { maxWidth: layout.maxContentWidth },
   header: {
     flexDirection: 'row',

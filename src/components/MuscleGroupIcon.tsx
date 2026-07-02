@@ -2,7 +2,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React from 'react';
 
 import { MuscleGroup } from '../types';
-import { muscleColors } from '../theme';
+import { colors } from '../theme';
 
 type IconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 
@@ -32,7 +32,7 @@ interface MuscleGroupIconProps {
 export default function MuscleGroupIcon({
   group,
   size = 22,
-  color = muscleColors[group],
+  color = colors.primary,
 }: MuscleGroupIconProps) {
   return <MaterialCommunityIcons name={MUSCLE_ICONS[group]} size={size} color={color} />;
 }

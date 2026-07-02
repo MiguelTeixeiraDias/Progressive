@@ -16,7 +16,7 @@ import {
 import { useResponsive } from '../hooks/useResponsive';
 import { TabScreenProps } from '../navigation/types';
 import { useStore } from '../store/useStore';
-import { colors, displayText, family, font, muscleColors, radius, spacing } from '../theme';
+import { colors, displayText, family, font, radius, spacing } from '../theme';
 import { withAlpha } from '../utils/color';
 import {
   activeSplitRotation,
@@ -302,7 +302,7 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
                       key={i}
                       style={[
                         styles.block,
-                        on ? { backgroundColor: muscleColors[row.group] } : styles.blockOff,
+                        on ? { backgroundColor: colors.primary } : styles.blockOff,
                       ]}
                     />
                   ))}

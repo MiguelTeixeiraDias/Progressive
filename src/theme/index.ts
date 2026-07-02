@@ -1,7 +1,5 @@
 import type { TextStyle } from 'react-native';
 
-import { MuscleGroup } from '../types';
-
 /**
  * Strict three-color system for "Progressive": a near-black training-journal
  * surface, an acid-lime performance accent used sparingly for actions/progress,
@@ -112,18 +110,3 @@ export function displayText(size: number, letterSpacing = 0): TextStyle {
   };
 }
 
-/**
- * Muted, desaturated per-category accents — used sparingly as small tints
- * (icon glyphs, badge/monogram borders, the muscle-focus grid) so categories
- * read as distinct at a glance without competing with the acid-lime primary
- * or diluting the strict bg/lime/bone identity used everywhere else.
- */
-export const muscleColors: Record<MuscleGroup, string> = {
-  Chest: '#FF8A65',
-  Back: '#4FC3F7',
-  Shoulders: '#BA68C8',
-  Legs: '#81C784',
-  Arms: '#FFD54F',
-  Core: '#F06292',
-  Cardio: '#EF5350',
-};

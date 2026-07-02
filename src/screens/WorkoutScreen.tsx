@@ -220,9 +220,9 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
               <View style={styles.desktopGrid}>
                 <View style={styles.mainCol}>
                   {headEl}
-                  {actionsEl}
+                  {templatesEl}
                 </View>
-                <View style={styles.sideCol}>{templatesEl}</View>
+                <View style={styles.sideCol}>{actionsEl}</View>
               </View>
             ) : (
               <>
@@ -485,7 +485,7 @@ const styles = StyleSheet.create({
   preStartScroll: { width: '100%', alignItems: 'center', paddingBottom: spacing.xxl },
   desktopGrid: { flexDirection: 'row', gap: spacing.xl, alignItems: 'flex-start' },
   mainCol: { flex: 1, minWidth: 0 },
-  sideCol: { width: 380 },
+  sideCol: { width: 260 },
   head: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.md },
   headTitle: { color: colors.text, fontFamily: family.display, fontSize: font.display, lineHeight: Math.ceil(font.display * 1.15), letterSpacing: 1, includeFontPadding: false },
   subtitle: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 1.2, marginTop: 2 },

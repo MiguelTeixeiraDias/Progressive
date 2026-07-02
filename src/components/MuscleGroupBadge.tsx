@@ -2,8 +2,7 @@ import React from 'react';
 import { StyleProp, StyleSheet, Text, View, ViewStyle } from 'react-native';
 
 import { MuscleGroup } from '../types';
-import { colors, family, font, muscleColors, radius } from '../theme';
-import { withAlpha } from '../utils/color';
+import { colors, family, font, radius } from '../theme';
 
 interface MuscleGroupBadgeProps {
   group: MuscleGroup;
@@ -25,7 +24,7 @@ export default function MuscleGroupBadge({
       style={[
         styles.badge,
         {
-          borderColor: active ? colors.primary : withAlpha(muscleColors[group], 0.35),
+          borderColor: active ? colors.primary : colors.border,
           backgroundColor: active ? colors.primaryDim : 'transparent',
           paddingVertical: small ? 3 : 5,
           paddingHorizontal: small ? 8 : 11,
