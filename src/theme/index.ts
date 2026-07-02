@@ -57,7 +57,7 @@ export const breakpoints = {
 
 /** Desktop/web layout constants — capped content widths and the sidebar rail. */
 export const layout = {
-  maxContentWidth: 1080,
+  maxContentWidth: 1440,
   formMaxWidth: 560,
   sidebarWidth: 248,
 } as const;

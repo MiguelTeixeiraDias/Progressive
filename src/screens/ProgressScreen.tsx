@@ -160,33 +160,21 @@ export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'
   }
 
   // Headline tiles
-  const tilesEl = (
+  const kpiPace = data.pace !== null
+    ? <KPICard style={styles.tile} label="Current pace" value={data.pace} accent={paceColor} countUp format={signedPct} caption="PER WEEK · 4 WK" />
+    : <KPICard style={styles.tile} label="Current pace" value="—" caption="NOT ENOUGH DATA" />;
+  const kpiWorkouts = <KPICard style={styles.tile} label="Workouts" value={data.totalWorkouts} countUp />;
+  const kpiStreak = <KPICard style={styles.tile} label="Current streak" value={data.streak} countUp caption="DAYS" />;
+  const kpiPr = data.latestPr
+    ? <KPICard style={styles.tile} label="Latest record" value={data.latestPr.maxWeight} unit="kg" accent={colors.primary} countUp format={formatWeight} caption={data.latestPr.exerciseName.toUpperCase()} />
+    : <KPICard style={styles.tile} label="Latest record" value="—" caption="NO RECORDS YET" />;
+
+  const tilesEl = isDesktop ? (
+    <View style={styles.tiles}>{kpiPace}{kpiWorkouts}{kpiStreak}{kpiPr}</View>
+  ) : (
     <>
-      <View style={styles.tiles}>
-        {data.pace !== null ? (
-          <KPICard style={styles.tile} label="Current pace" value={data.pace} accent={paceColor} countUp format={signedPct} caption="PER WEEK · 4 WK" />
-        ) : (
-          <KPICard style={styles.tile} label="Current pace" value="—" caption="NOT ENOUGH DATA" />
-        )}
-        <KPICard style={styles.tile} label="Workouts" value={data.totalWorkouts} countUp />
-      </View>
-      <View style={styles.tiles}>
-        <KPICard style={styles.tile} label="Current streak" value={data.streak} countUp caption="DAYS" />
-        {data.latestPr ? (
-          <KPICard
-            style={styles.tile}
-            label="Latest record"
-            value={data.latestPr.maxWeight}
-            unit="kg"
-            accent={colors.primary}
-            countUp
-            format={formatWeight}
-            caption={data.latestPr.exerciseName.toUpperCase()}
-          />
-        ) : (
-          <KPICard style={styles.tile} label="Latest record" value="—" caption="NO RECORDS YET" />
-        )}
-      </View>
+      <View style={styles.tiles}>{kpiPace}{kpiWorkouts}</View>
+      <View style={styles.tiles}>{kpiStreak}{kpiPr}</View>
     </>
   );
 
