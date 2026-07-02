@@ -215,15 +215,15 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
         <ScrollView style={{ width: '100%' }} contentContainerStyle={styles.preStartScroll} showsVerticalScrollIndicator={false}>
-          <PageWidth style={styles.page}>
+          <PageWidth style={[styles.page, isDesktop && styles.pageDesktop]}>
             {isDesktop ? (
-              <View style={styles.desktopGrid}>
-                <View style={styles.mainCol}>
-                  {headEl}
-                  {templatesEl}
+              <>
+                {headEl}
+                <View style={styles.desktopGrid}>
+                  <View style={styles.mainCol}>{templatesEl}</View>
+                  <View style={styles.sideCol}>{actionsEl}</View>
                 </View>
-                <View style={styles.sideCol}>{actionsEl}</View>
-              </View>
+              </>
             ) : (
               <>
                 {headEl}
@@ -479,13 +479,14 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg, alignItems: 'center' },
   page: { flex: 1, width: '100%', maxWidth: layout.maxContentWidth },
+  pageDesktop: { paddingHorizontal: spacing.xxl },
   flex: { flex: 1 },
 
   // Pre-start
   preStartScroll: { width: '100%', alignItems: 'center', paddingBottom: spacing.xxl },
-  desktopGrid: { flexDirection: 'row', gap: spacing.xl, alignItems: 'flex-start' },
+  desktopGrid: { flexDirection: 'row', gap: spacing.xxxl, alignItems: 'flex-start' },
   mainCol: { flex: 1, minWidth: 0 },
-  sideCol: { width: 320 },
+  sideCol: { width: 360 },
   head: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.md },
   headTitle: { color: colors.text, fontFamily: family.display, fontSize: font.display, lineHeight: Math.ceil(font.display * 1.15), letterSpacing: 1, includeFontPadding: false },
   subtitle: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 1.2, marginTop: 2 },

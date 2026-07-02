@@ -150,8 +150,20 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
   );
 
   // CTAs
-  const ctasEl = (
-    <View style={[styles.ctas, isDesktop && styles.ctasDesktop]}>
+  const ctasEl = isDesktop ? (
+    <View style={styles.ctasRow}>
+      <PrimaryButton
+        title={activeWorkout ? 'Resume Workout' : 'Start Workout'}
+        icon={activeWorkout ? 'play' : 'add'}
+        onPress={goToWorkout}
+        style={styles.ctaBtn}
+      />
+      {m.last ? (
+        <PrimaryButton title="Repeat Last Session" icon="refresh" variant="secondary" size="md" onPress={onRepeat} style={styles.ctaBtn} />
+      ) : null}
+    </View>
+  ) : (
+    <View style={styles.ctas}>
       <PrimaryButton
         title={activeWorkout ? 'Resume Workout' : 'Start Workout'}
         icon={activeWorkout ? 'play' : 'add'}
@@ -374,23 +386,25 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView style={styles.scrollFull} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <PageWidth style={styles.page}>
+        <PageWidth style={[styles.page, isDesktop && styles.pageDesktop]}>
           {isDesktop ? (
-            <View style={styles.desktopGrid}>
-              <View style={styles.mainCol}>
-                {mastheadEl}
-                {ctasEl}
-                {trainNextEl}
-                {featureEl}
-                {muscleFocusEl}
-                {nextTargetEl}
+            <>
+              {mastheadEl}
+              <View style={styles.desktopGrid}>
+                <View style={styles.mainCol}>
+                  {ctasEl}
+                  {trainNextEl}
+                  {featureEl}
+                  {muscleFocusEl}
+                  {nextTargetEl}
+                </View>
+                <View style={styles.sideCol}>
+                  {bodyEl}
+                  {mostImprovedEl}
+                  {lastSessionEl}
+                </View>
               </View>
-              <View style={styles.sideCol}>
-                {bodyEl}
-                {mostImprovedEl}
-                {lastSessionEl}
-              </View>
-            </View>
+            </>
           ) : (
             <View style={styles.stack}>
               {mastheadEl}
@@ -417,10 +431,11 @@ const styles = StyleSheet.create({
   scrollFull: { width: '100%' },
   scrollContent: { width: '100%', alignItems: 'center', paddingBottom: spacing.xxl },
   page: { paddingHorizontal: spacing.lg },
+  pageDesktop: { paddingHorizontal: spacing.xxl },
   stack: { gap: spacing.xl },
-  desktopGrid: { flexDirection: 'row', gap: spacing.xl, alignItems: 'flex-start' },
-  mainCol: { flex: 1, gap: spacing.xl, minWidth: 0 },
-  sideCol: { width: 340, gap: spacing.xl },
+  desktopGrid: { flexDirection: 'row', gap: spacing.xxxl, alignItems: 'flex-start' },
+  mainCol: { flex: 1, gap: spacing.xxl, minWidth: 0 },
+  sideCol: { width: 380, gap: spacing.xl },
 
   masthead: { marginTop: spacing.sm },
   mastheadRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -448,7 +463,8 @@ const styles = StyleSheet.create({
   subtitle: { color: colors.textDim, fontFamily: family.body, fontSize: font.body, marginTop: spacing.md, lineHeight: 21 },
 
   ctas: { gap: spacing.sm },
-  ctasDesktop: { maxWidth: 480 },
+  ctasRow: { flexDirection: 'row', gap: spacing.sm },
+  ctaBtn: { flex: 1 },
   flex: { flex: 1 },
 
   cardLabel: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 1.6 },

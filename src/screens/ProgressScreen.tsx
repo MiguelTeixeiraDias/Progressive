@@ -48,7 +48,7 @@ import {
 
 const DAY_LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 const MAX_KEY_LIFTS = 6;
-const SIDE_COL_WIDTH = 340;
+const SIDE_COL_WIDTH = 380;
 
 export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'>) {
   const workouts = useStore((s) => s.workouts);
@@ -106,7 +106,7 @@ export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'
   const [filter, setFilter] = useState<MuscleFilter>('All');
   const { width, isDesktop } = useResponsive();
   const pageWidth = Math.min(width, layout.maxContentWidth) - spacing.lg * 2;
-  const mainWidth = isDesktop ? pageWidth - SIDE_COL_WIDTH - spacing.xl : pageWidth;
+  const mainWidth = isDesktop ? pageWidth - SIDE_COL_WIDTH - spacing.xxxl : pageWidth;
   const keyLiftCols = isDesktop ? MAX_KEY_LIFTS : 3;
   const colW = (mainWidth - spacing.md * (keyLiftCols - 1)) / keyLiftCols;
 
@@ -400,12 +400,12 @@ export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <PageWidth style={styles.head}>
+      <PageWidth style={[styles.head, isDesktop && styles.headDesktop]}>
         <Text style={styles.title}>PROGRESS</Text>
         <Text style={styles.subtitle}>THE PERFORMANCE REPORT</Text>
       </PageWidth>
       <ScrollView style={{ width: '100%' }} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <PageWidth style={styles.page}>
+        <PageWidth style={[styles.page, isDesktop && styles.pageDesktop]}>
           {tilesEl}
           {isDesktop ? (
             <View style={styles.desktopGrid}>
@@ -482,11 +482,13 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg, alignItems: 'center' },
   scrollContent: { width: '100%', alignItems: 'center', paddingBottom: spacing.xxl },
   page: { paddingHorizontal: spacing.lg, gap: spacing.lg },
+  pageDesktop: { paddingHorizontal: spacing.xxl },
   stack: { gap: spacing.lg },
-  desktopGrid: { flexDirection: 'row', gap: spacing.xl, alignItems: 'flex-start' },
+  desktopGrid: { flexDirection: 'row', gap: spacing.xxxl, alignItems: 'flex-start' },
   mainCol: { flex: 1, gap: spacing.lg, minWidth: 0 },
   sideCol: { width: SIDE_COL_WIDTH, gap: spacing.lg },
   head: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.md },
+  headDesktop: { paddingHorizontal: spacing.xxl, paddingTop: spacing.lg, paddingBottom: spacing.lg },
   emptyHead: { paddingTop: spacing.sm, paddingBottom: spacing.md },
   title: { color: colors.text, fontFamily: family.display, fontSize: font.display, lineHeight: Math.ceil(font.display * 1.15), letterSpacing: 1, includeFontPadding: false },
   subtitle: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 1.2, marginTop: 2 },
