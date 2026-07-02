@@ -182,12 +182,12 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
             No templates yet. Create one with the button below to start faster next time.
           </Text>
         ) : (
-          <View style={styles.templatesList}>
+          <View style={isDesktop ? styles.templatesGrid : styles.templatesList}>
             {templates.map((t) => (
               <Pressable
                 key={t.id}
                 onPress={() => setConfirmTpl(t)}
-                style={({ pressed }) => [styles.tplRow, pressed && styles.tplRowPressed]}
+                style={({ pressed }) => [styles.tplRow, isDesktop && styles.tplRowDesktop, pressed && styles.tplRowPressed]}
               >
                 <View style={styles.flex}>
                   <Text style={styles.tplRowName} numberOfLines={1}>
@@ -214,7 +214,7 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
 
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <ScrollView contentContainerStyle={styles.preStartScroll} showsVerticalScrollIndicator={false}>
+        <ScrollView style={{ width: '100%' }} contentContainerStyle={styles.preStartScroll} showsVerticalScrollIndicator={false}>
           <PageWidth style={styles.page}>
             {isDesktop ? (
               <View style={styles.desktopGrid}>
@@ -497,6 +497,8 @@ const styles = StyleSheet.create({
   templatesLabel: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 1.6, paddingHorizontal: spacing.lg, marginBottom: spacing.md },
   templatesEmpty: { color: colors.textFaint, fontFamily: family.body, fontSize: font.small, lineHeight: 18, paddingHorizontal: spacing.lg, maxWidth: 280 },
   templatesList: { paddingHorizontal: spacing.lg, gap: spacing.sm },
+  templatesGrid: { paddingHorizontal: spacing.lg, flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  tplRowDesktop: { width: '48%' },
   tplRow: {
     flexDirection: 'row',
     alignItems: 'center',

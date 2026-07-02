@@ -404,7 +404,7 @@ export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'
         <Text style={styles.title}>PROGRESS</Text>
         <Text style={styles.subtitle}>THE PERFORMANCE REPORT</Text>
       </PageWidth>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView style={{ width: '100%' }} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <PageWidth style={styles.page}>
           {tilesEl}
           {isDesktop ? (

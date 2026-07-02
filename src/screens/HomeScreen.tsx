@@ -151,7 +151,7 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
 
   // CTAs
   const ctasEl = (
-    <View style={styles.ctas}>
+    <View style={[styles.ctas, isDesktop && styles.ctasDesktop]}>
       <PrimaryButton
         title={activeWorkout ? 'Resume Workout' : 'Start Workout'}
         icon={activeWorkout ? 'play' : 'add'}
@@ -373,7 +373,7 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.scrollFull} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <PageWidth style={styles.page}>
           {isDesktop ? (
             <View style={styles.desktopGrid}>
@@ -414,6 +414,7 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg, alignItems: 'center' },
+  scrollFull: { width: '100%' },
   scrollContent: { width: '100%', alignItems: 'center', paddingBottom: spacing.xxl },
   page: { paddingHorizontal: spacing.lg },
   stack: { gap: spacing.xl },
@@ -447,6 +448,7 @@ const styles = StyleSheet.create({
   subtitle: { color: colors.textDim, fontFamily: family.body, fontSize: font.body, marginTop: spacing.md, lineHeight: 21 },
 
   ctas: { gap: spacing.sm },
+  ctasDesktop: { maxWidth: 480 },
   flex: { flex: 1 },
 
   cardLabel: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 1.6 },
