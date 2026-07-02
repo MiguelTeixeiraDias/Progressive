@@ -9,6 +9,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,6 +18,7 @@ import {
   EmptyState,
   ExerciseCard,
   KPICard,
+  LineChart,
   MuscleFilter,
   MuscleFilterTabs,
   PageWidth,
@@ -56,6 +58,7 @@ export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'
   const exercises = useStore((s) => s.exercises);
   const bodyWeights = useStore((s) => s.bodyWeights);
   const updateSettings = useStore((s) => s.updateSettings);
+  const logBodyWeight = useStore((s) => s.logBodyWeight);
 
   const data = useMemo(() => {
     const score = overloadScore(workouts);
@@ -88,16 +91,22 @@ export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'
   })();
   const insights = goalLine ? [goalLine, ...data.insights] : data.insights;
 
-  // Bodyweight trend (last 14 weigh-ins, oldest first).
+  // Bodyweight trend (last 30 weigh-ins, oldest first).
   const unit = settings.unit.toUpperCase();
-  const bwSeries = bodyWeights.slice(-14);
+  const bwSeries = bodyWeights.slice(-30);
   const bwValues = bwSeries.map((e) => e.weight);
-  const bwMin = bwValues.length ? Math.min(...bwValues) : 0;
-  const bwMax = bwValues.length ? Math.max(...bwValues) : 0;
+  const bwLabels = bwSeries.map((e) => shortDate(e.date));
   const bwCurrent = bodyWeights.length ? bodyWeights[bodyWeights.length - 1].weight : null;
   const bwStart = bodyWeights.length ? bodyWeights[0].weight : null;
   const bwDelta = bwCurrent !== null && bwStart !== null ? bwCurrent - bwStart : null;
   const targetWeight = settings.goals.targetBodyWeight;
+  const [weightInput, setWeightInput] = useState('');
+  const onLogWeight = () => {
+    const n = parseFloat(weightInput.replace(',', '.'));
+    if (!Number.isFinite(n) || n <= 0) return;
+    logBodyWeight(n);
+    setWeightInput('');
+  };
 
   // Key lifts (editable from the heading) — 3–6 chosen exercises.
   const featured = settings.featuredExercises.slice(0, MAX_KEY_LIFTS);
@@ -299,17 +308,48 @@ export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'
     </View>
   );
 
+  // Inline weigh-in logger — shared by the empty state and the populated card.
+  const weightLogger = (
+    <View style={styles.bwLogRow}>
+      <TextInput
+        value={weightInput}
+        onChangeText={setWeightInput}
+        placeholder={bwCurrent !== null ? formatWeight(bwCurrent) : `Weight in ${unit.toLowerCase()}`}
+        placeholderTextColor={colors.textFaint}
+        keyboardType="decimal-pad"
+        returnKeyType="done"
+        onSubmitEditing={onLogWeight}
+        style={styles.bwInput}
+      />
+      <Pressable
+        onPress={onLogWeight}
+        disabled={!weightInput.trim()}
+        style={({ pressed }) => [
+          styles.bwLogBtn,
+          !weightInput.trim() && styles.bwLogBtnDisabled,
+          pressed && styles.bwLogBtnPressed,
+        ]}
+      >
+        <Ionicons name="add" size={18} color={colors.bg} />
+        <Text style={styles.bwLogBtnText}>LOG</Text>
+      </Pressable>
+    </View>
+  );
+
   // Bodyweight trend
   const bodyweightEl = (
     <View style={styles.section}>
-      <SectionHeader title="Bodyweight" subtitle="Your weigh-ins over time" />
+      <SectionHeader title="Bodyweight" subtitle="Log your weight and track the trend" />
       <View style={styles.card}>
         {bodyWeights.length === 0 ? (
-          <EmptyState
-            icon="body-outline"
-            title="No weigh-ins yet"
-            message="Update your current weight in Settings and your trend builds here."
-          />
+          <>
+            <EmptyState
+              icon="body-outline"
+              title="No weigh-ins yet"
+              message="Log your current weight below and your trend line builds from here."
+            />
+            {weightLogger}
+          </>
         ) : (
           <>
             <View style={styles.bwStatsRow}>
@@ -321,7 +361,7 @@ export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'
               </View>
               {bwDelta !== null && Math.abs(bwDelta) >= 0.1 ? (
                 <View>
-                  <Text style={[styles.bwValue, { color: colors.primary }]}>
+                  <Text style={styles.bwValue}>
                     {bwDelta > 0 ? '+' : '−'}{formatWeight(Math.abs(bwDelta))}<Text style={styles.bwUnit}> {unit}</Text>
                   </Text>
                   <Text style={styles.bwStatLabel}>SINCE FIRST</Text>
@@ -329,32 +369,23 @@ export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'
               ) : null}
               {targetWeight ? (
                 <View>
-                  <Text style={styles.bwValue}>{formatWeight(targetWeight)}<Text style={styles.bwUnit}> {unit}</Text></Text>
+                  <Text style={[styles.bwValue, { color: colors.primary }]}>{formatWeight(targetWeight)}<Text style={styles.bwUnit}> {unit}</Text></Text>
                   <Text style={styles.bwStatLabel}>TARGET</Text>
                 </View>
               ) : null}
             </View>
             {bwSeries.length >= 2 ? (
-              <View style={styles.bwChart}>
-                {bwSeries.map((e, i) => {
-                  const norm = bwMax > bwMin ? (e.weight - bwMin) / (bwMax - bwMin) : 1;
-                  const h = 14 + norm * 58;
-                  const last = i === bwSeries.length - 1;
-                  return (
-                    <View key={e.id} style={styles.bwCol}>
-                      <View
-                        style={[
-                          styles.bwBar,
-                          { height: h, backgroundColor: last ? colors.primary : withAlpha(colors.text, 0.18) },
-                        ]}
-                      />
-                    </View>
-                  );
-                })}
-              </View>
+              <LineChart
+                values={bwValues}
+                labels={bwLabels}
+                height={150}
+                formatValue={(v) => `${formatWeight(v)}`}
+                style={styles.bwChartWrap}
+              />
             ) : (
-              <Text style={styles.muscleFocusNote}>Log again on another day to see your trend.</Text>
+              <Text style={styles.muscleFocusNote}>Log again on another day to see your trend line.</Text>
             )}
+            {weightLogger}
           </>
         )}
       </View>
@@ -478,6 +509,14 @@ export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'
   );
 }
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** 'yyyy-mm-dd' → 'D Mon' for chart axis labels. */
+function shortDate(iso: string): string {
+  const [, m, d] = iso.split('-').map((p) => parseInt(p, 10));
+  if (!m || !d) return '';
+  return `${d} ${MONTHS[m - 1]}`;
+}
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg, alignItems: 'center' },
   scrollContent: { width: '100%', alignItems: 'center', paddingBottom: spacing.xxl },
@@ -559,9 +598,32 @@ const styles = StyleSheet.create({
   bwValue: { color: colors.text, fontFamily: family.display, fontSize: font.h2, lineHeight: Math.ceil(font.h2 * 1.15), includeFontPadding: false },
   bwUnit: { color: colors.textDim, fontFamily: family.medium, fontSize: font.label },
   bwStatLabel: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 1, marginTop: 2 },
-  bwChart: { flexDirection: 'row', alignItems: 'flex-end', height: 76, gap: 4 },
-  bwCol: { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
-  bwBar: { width: '100%', borderRadius: radius.xs },
+  bwChartWrap: { marginTop: spacing.xs },
+  bwLogRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg },
+  bwInput: {
+    flex: 1,
+    backgroundColor: colors.card2,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.lg,
+    height: 46,
+    color: colors.text,
+    fontFamily: family.medium,
+    fontSize: font.body,
+  },
+  bwLogBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.lg,
+    height: 46,
+    borderRadius: radius.sm,
+    backgroundColor: colors.primary,
+  },
+  bwLogBtnDisabled: { opacity: 0.4 },
+  bwLogBtnPressed: { opacity: 0.85 },
+  bwLogBtnText: { color: colors.bg, fontFamily: family.bold, fontSize: font.label, letterSpacing: 0.8 },
 
   // Personal records
   prWrap: { position: 'relative' },

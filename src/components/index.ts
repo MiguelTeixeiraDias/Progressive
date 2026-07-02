@@ -14,6 +14,7 @@ export { default as WorkoutSummaryCard } from './WorkoutSummaryCard';
 export { default as PersonalBestBadge } from './PersonalBestBadge';
 export { default as StatChart } from './StatChart';
 export { default as PercentChart } from './PercentChart';
+export { default as LineChart } from './LineChart';
 export { default as StreakCalendarModal } from './StreakCalendarModal';
 export { default as MuscleFilterTabs } from './MuscleFilterTabs';
 export type { MuscleFilter } from './MuscleFilterTabs';

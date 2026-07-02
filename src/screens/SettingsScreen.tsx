@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PageWidth, SectionHeader } from '../components';
 import PrimaryButton from '../components/PrimaryButton';
+import { useResponsive } from '../hooks/useResponsive';
 import { useAuth } from '../auth/AuthContext';
 import { TabScreenProps } from '../navigation/types';
 import { useStore } from '../store/useStore';
@@ -171,6 +172,7 @@ export default function SettingsScreen({ navigation }: TabScreenProps<'Settings'
   const updateSettings = useStore((s) => s.updateSettings);
   const logBodyWeight = useStore((s) => s.logBodyWeight);
   const { user, signOut } = useAuth();
+  const { isDesktop } = useResponsive();
 
   // Edits live in a local draft and only commit to the store on Save. Resync the
   // draft whenever the persisted settings change (e.g. a cloud load after sign-in
@@ -221,17 +223,10 @@ export default function SettingsScreen({ navigation }: TabScreenProps<'Settings'
 
   const unitLabel = draft.unit;
 
-  return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <PageWidth style={styles.page}>
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={styles.head}>
-          <Text style={styles.title}>SETTINGS</Text>
-          <Text style={styles.subtitle}>TRAINING PROFILE · APP PREFERENCES</Text>
-        </View>
-
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-          {/* Profile — local only for now; ready to connect to real user accounts later. */}
+  // Each settings group is captured as an element so desktop can lay them out
+  // in two balanced columns (less scrolling, no wasted side gutters) while
+  // mobile keeps the single stacked column.
+  const profileSection = (
           <View style={styles.section}>
             <SectionHeader title="Profile" subtitle="Local profile · no account needed yet" />
             <View style={styles.card}>
@@ -273,9 +268,11 @@ export default function SettingsScreen({ navigation }: TabScreenProps<'Settings'
               </Field>
             </View>
           </View>
+  );
 
-          {/* Custom splits — drive the Home "Train Next" suggestion when the
-              preferred split is set to Custom. */}
+  {/* Custom splits — drive the Home "Train Next" suggestion when the
+      preferred split is set to Custom. */}
+  const splitsSection = (
           <View style={styles.section}>
             <SectionHeader title="Custom Splits" subtitle="Build your own training rotation" />
             <View style={styles.card}>
@@ -320,8 +317,10 @@ export default function SettingsScreen({ navigation }: TabScreenProps<'Settings'
               />
             </View>
           </View>
+  );
 
-          {/* App preferences */}
+  {/* App preferences */}
+  const prefsSection = (
           <View style={styles.section}>
             <SectionHeader title="App Preferences" subtitle="Units used across the workout flow" />
             <View style={styles.card}>
@@ -330,8 +329,10 @@ export default function SettingsScreen({ navigation }: TabScreenProps<'Settings'
               </Field>
             </View>
           </View>
+  );
 
-          {/* Body stats — future calculations / AI integration */}
+  {/* Body stats — future calculations / AI integration */}
+  const bodySection = (
           <View style={styles.section}>
             <SectionHeader title="Body Stats" subtitle="Profile data for future insights" />
             <View style={styles.card}>
@@ -357,8 +358,10 @@ export default function SettingsScreen({ navigation }: TabScreenProps<'Settings'
               </Field>
             </View>
           </View>
+  );
 
-          {/* Goals */}
+  {/* Goals */}
+  const goalsSection = (
           <View style={styles.section}>
             <SectionHeader title="Goals" subtitle="Targets to drive future coaching" />
             <View style={styles.card}>
@@ -410,8 +413,10 @@ export default function SettingsScreen({ navigation }: TabScreenProps<'Settings'
               </Field>
             </View>
           </View>
+  );
 
-          {/* Account — Supabase auth */}
+  {/* Account — Supabase auth */}
+  const accountSection = (
           <View style={styles.section}>
             <SectionHeader title="Account" subtitle="Synced to your Progressive account" />
             <View style={styles.card}>
@@ -423,10 +428,49 @@ export default function SettingsScreen({ navigation }: TabScreenProps<'Settings'
               <PrimaryButton title="Sign out" variant="danger" icon="log-out-outline" fullWidth onPress={signOut} />
             </View>
           </View>
+  );
 
-          <Text style={styles.footnote}>
-            Your workouts, templates and profile sync to the cloud and load on any device you sign in to.
-          </Text>
+  const footnote = (
+    <Text style={styles.footnote}>
+      Your workouts, templates and profile sync to the cloud and load on any device you sign in to.
+    </Text>
+  );
+
+  return (
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      <PageWidth style={[styles.page, isDesktop && styles.pageDesktop]}>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <View style={[styles.head, isDesktop && styles.headDesktop]}>
+          <Text style={styles.title}>SETTINGS</Text>
+          <Text style={styles.subtitle}>TRAINING PROFILE · APP PREFERENCES</Text>
+        </View>
+
+        <ScrollView contentContainerStyle={[styles.content, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          {isDesktop ? (
+            <View style={styles.grid}>
+              <View style={styles.col}>
+                {profileSection}
+                {prefsSection}
+                {bodySection}
+              </View>
+              <View style={styles.col}>
+                {splitsSection}
+                {goalsSection}
+                {accountSection}
+                {footnote}
+              </View>
+            </View>
+          ) : (
+            <>
+              {profileSection}
+              {splitsSection}
+              {prefsSection}
+              {bodySection}
+              {goalsSection}
+              {accountSection}
+              {footnote}
+            </>
+          )}
         </ScrollView>
 
         {/* Sticky save bar — only shown while there are unsaved edits; it
@@ -466,8 +510,13 @@ function parseNum(s: string): number | undefined {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg, alignItems: 'center' },
   page: { flex: 1, width: '100%', maxWidth: layout.formMaxWidth },
+  pageDesktop: { maxWidth: 1120 },
   flex: { flex: 1 },
   head: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.md },
+  headDesktop: { paddingHorizontal: spacing.xxl, paddingTop: spacing.lg },
+  contentDesktop: { paddingHorizontal: spacing.xxl },
+  grid: { flexDirection: 'row', gap: spacing.xxxl, alignItems: 'flex-start' },
+  col: { flex: 1, gap: spacing.xl, minWidth: 0 },
   title: { color: colors.text, fontFamily: family.display, fontSize: font.display, lineHeight: Math.ceil(font.display * 1.15), letterSpacing: 1, includeFontPadding: false },
   subtitle: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 1.2, marginTop: 2 },
   content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.xl },

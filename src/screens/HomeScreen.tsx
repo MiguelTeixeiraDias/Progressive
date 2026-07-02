@@ -388,23 +388,23 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
       <ScrollView style={styles.scrollFull} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <PageWidth style={[styles.page, isDesktop && styles.pageDesktop]}>
           {isDesktop ? (
-            <>
+            <View style={styles.desktopRoot}>
               {mastheadEl}
+              {ctasEl}
               <View style={styles.desktopGrid}>
                 <View style={styles.mainCol}>
-                  {ctasEl}
                   {trainNextEl}
                   {featureEl}
                   {muscleFocusEl}
-                  {nextTargetEl}
                 </View>
                 <View style={styles.sideCol}>
                   {bodyEl}
+                  {nextTargetEl}
                   {mostImprovedEl}
                   {lastSessionEl}
                 </View>
               </View>
-            </>
+            </View>
           ) : (
             <View style={styles.stack}>
               {mastheadEl}
@@ -433,6 +433,7 @@ const styles = StyleSheet.create({
   page: { paddingHorizontal: spacing.lg },
   pageDesktop: { paddingHorizontal: spacing.xxl },
   stack: { gap: spacing.xl },
+  desktopRoot: { gap: spacing.xxl },
   desktopGrid: { flexDirection: 'row', gap: spacing.xxxl, alignItems: 'flex-start' },
   mainCol: { flex: 1, gap: spacing.xxl, minWidth: 0 },
   sideCol: { width: 380, gap: spacing.xl },
@@ -463,7 +464,7 @@ const styles = StyleSheet.create({
   subtitle: { color: colors.textDim, fontFamily: family.body, fontSize: font.body, marginTop: spacing.md, lineHeight: 21 },
 
   ctas: { gap: spacing.sm },
-  ctasRow: { flexDirection: 'row', gap: spacing.sm },
+  ctasRow: { flexDirection: 'row', gap: spacing.sm, maxWidth: 560 },
   ctaBtn: { flex: 1 },
   flex: { flex: 1 },
 
