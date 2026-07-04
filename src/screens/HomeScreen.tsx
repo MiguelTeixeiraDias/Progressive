@@ -1,11 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
   Card,
   EmptyState,
+  LineChart,
   PageWidth,
   PercentChart,
   PrimaryButton,
@@ -55,10 +56,14 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
   const workouts = useStore((s) => s.workouts);
   const settings = useStore((s) => s.settings);
   const activeWorkout = useStore((s) => s.activeWorkout);
+  const bodyWeights = useStore((s) => s.bodyWeights);
   const repeatLastWorkout = useStore((s) => s.repeatLastWorkout);
   const startWorkoutFrom = useStore((s) => s.startWorkoutFrom);
+  const logBodyWeight = useStore((s) => s.logBodyWeight);
+  const updateSettings = useStore((s) => s.updateSettings);
 
   const [streakOpen, setStreakOpen] = useState(false);
+  const [weightInput, setWeightInput] = useState('');
   const { isDesktop } = useResponsive();
 
   const m = useMemo(() => {
@@ -78,7 +83,9 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
 
   // Coaching cues derived from the profile/goal data in Settings.
   const unit = settings.unit.toUpperCase();
-  const bodyWeight = settings.bodyStats.currentWeight;
+  // Prefer the latest logged weigh-in; fall back to the Settings body stat.
+  const loggedCurrent = bodyWeights.length ? bodyWeights[bodyWeights.length - 1].weight : null;
+  const bodyWeight = loggedCurrent ?? settings.bodyStats.currentWeight ?? null;
   // BMI is kg-based; body weight is stored in the user's unit, so normalise.
   const bodyWeightKg =
     bodyWeight != null ? (settings.unit === 'lb' ? bodyWeight * 0.453592 : bodyWeight) : undefined;
@@ -86,7 +93,23 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
     () => bmi(bodyWeightKg, settings.bodyStats.height),
     [bodyWeightKg, settings.bodyStats.height],
   );
-  const target = weightToTarget(settings.bodyStats.currentWeight, settings.goals.targetBodyWeight);
+  const target = weightToTarget(bodyWeight ?? undefined, settings.goals.targetBodyWeight);
+
+  // Bodyweight trend for the Home BODY card (last 30 weigh-ins, oldest first).
+  const bwSeries = bodyWeights.slice(-30);
+  const bwValues = bwSeries.map((e) => e.weight);
+  const bwLabels = bwSeries.map((e) => shortDate(e.date));
+  const bwStart = bodyWeights.length ? bodyWeights[0].weight : null;
+  const bwDelta = loggedCurrent !== null && bwStart !== null ? loggedCurrent - bwStart : null;
+
+  const onLogWeight = () => {
+    const n = parseFloat(weightInput.replace(',', '.'));
+    if (!Number.isFinite(n) || n <= 0) return;
+    logBodyWeight(n);
+    // Keep the Settings body stat in sync so BMI and target coaching stay fresh.
+    updateSettings({ bodyStats: { ...settings.bodyStats, currentWeight: n } });
+    setWeightInput('');
+  };
   const trainNext = useMemo(() => {
     const rot = activeSplitRotation(settings);
     if (!rot) return null;
@@ -223,33 +246,87 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
     </Card>
   );
 
-  // Body — current weight, BMI and progress toward the target weight
-  const bodyEl = bodyWeight ? (
+  // Inline weigh-in logger — shared by the empty and populated states.
+  const weightLogger = (
+    <View style={styles.bwLogRow}>
+      <TextInput
+        value={weightInput}
+        onChangeText={setWeightInput}
+        placeholder={loggedCurrent !== null ? formatWeight(loggedCurrent) : `Weight in ${unit.toLowerCase()}`}
+        placeholderTextColor={colors.textFaint}
+        keyboardType="decimal-pad"
+        returnKeyType="done"
+        onSubmitEditing={onLogWeight}
+        style={styles.bwInput}
+      />
+      <Pressable
+        onPress={onLogWeight}
+        disabled={!weightInput.trim()}
+        style={({ pressed }) => [
+          styles.bwLogBtn,
+          !weightInput.trim() && styles.bwLogBtnDisabled,
+          pressed && styles.bwLogBtnPressed,
+        ]}
+      >
+        <Ionicons name="add" size={18} color={colors.bg} />
+        <Text style={styles.bwLogBtnText}>UPDATE</Text>
+      </Pressable>
+    </View>
+  );
+
+  // Body — last recorded weight, BMI, a progress trend line and an update button
+  const bodyEl = (
     <Card>
       <Text style={styles.cardLabel}>BODY</Text>
-      <View style={styles.bodyRow}>
-        <View style={styles.bodyStat}>
-          <Text style={styles.bodyValue}>{formatWeight(bodyWeight)}<Text style={styles.bodyUnit}> {unit}</Text></Text>
-          <Text style={styles.bodyStatLabel}>CURRENT</Text>
-        </View>
-        {bmiValue !== null ? (
-          <View style={styles.bodyStat}>
-            <Text style={styles.bodyValue}>{bmiValue.toFixed(1)}</Text>
-            <Text style={styles.bodyStatLabel}>BMI · {bmiLabel(bmiValue).toUpperCase()}</Text>
-          </View>
-        ) : null}
-      </View>
-      {target ? (
-        <Text style={styles.bodyTarget}>
-          {target.direction === 'reached'
-            ? '🎯 You’re at your target weight.'
-            : `${formatWeight(target.delta)} ${unit} to ${target.direction} to reach your target.`}
-        </Text>
+      {bodyWeight === null ? (
+        <>
+          <Text style={styles.bodyTarget}>Log your current weight to start tracking your trend here.</Text>
+          {weightLogger}
+        </>
       ) : (
-        <Text style={styles.bodyTarget}>Set a target weight in Settings to track progress here.</Text>
+        <>
+          <View style={styles.bodyRow}>
+            <View style={styles.bodyStat}>
+              <Text style={styles.bodyValue}>{formatWeight(bodyWeight)}<Text style={styles.bodyUnit}> {unit}</Text></Text>
+              <Text style={styles.bodyStatLabel}>LAST RECORDED</Text>
+            </View>
+            {bwDelta !== null && Math.abs(bwDelta) >= 0.1 ? (
+              <View style={styles.bodyStat}>
+                <Text style={[styles.bodyValue, { color: bwDelta > 0 ? colors.text : colors.primary }]}>
+                  {bwDelta > 0 ? '+' : '−'}{formatWeight(Math.abs(bwDelta))}<Text style={styles.bodyUnit}> {unit}</Text>
+                </Text>
+                <Text style={styles.bodyStatLabel}>SINCE FIRST</Text>
+              </View>
+            ) : bmiValue !== null ? (
+              <View style={styles.bodyStat}>
+                <Text style={styles.bodyValue}>{bmiValue.toFixed(1)}</Text>
+                <Text style={styles.bodyStatLabel}>BMI · {bmiLabel(bmiValue).toUpperCase()}</Text>
+              </View>
+            ) : null}
+          </View>
+          {bwSeries.length >= 2 ? (
+            <LineChart
+              values={bwValues}
+              labels={bwLabels}
+              height={130}
+              formatValue={(v) => `${formatWeight(v)}`}
+              style={styles.bodyChart}
+            />
+          ) : (
+            <Text style={styles.bodyTarget}>Log again on another day to see your trend line.</Text>
+          )}
+          {target ? (
+            <Text style={styles.bodyTarget}>
+              {target.direction === 'reached'
+                ? '🎯 You’re at your target weight.'
+                : `${formatWeight(target.delta)} ${unit} to ${target.direction} to reach your target.`}
+            </Text>
+          ) : null}
+          {weightLogger}
+        </>
       )}
     </Card>
-  ) : null;
+  );
 
   // Most improved — wide editorial card
   const mostImprovedEl = (
@@ -426,6 +503,14 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
   );
 }
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** 'yyyy-mm-dd' → 'D Mon' for chart axis labels. */
+function shortDate(iso: string): string {
+  const [, m, d] = iso.split('-').map((p) => parseInt(p, 10));
+  if (!m || !d) return '';
+  return `${d} ${MONTHS[m - 1]}`;
+}
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg, alignItems: 'center' },
   scrollFull: { width: '100%' },
@@ -495,6 +580,32 @@ const styles = StyleSheet.create({
   bodyUnit: { fontFamily: family.medium, fontSize: font.label, color: colors.textDim },
   bodyStatLabel: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 1, marginTop: 2 },
   bodyTarget: { color: colors.textDim, fontFamily: family.body, fontSize: font.small, marginTop: spacing.md, lineHeight: 19 },
+  bodyChart: { marginTop: spacing.lg },
+  bwLogRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg },
+  bwInput: {
+    flex: 1,
+    backgroundColor: colors.card2,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.lg,
+    height: 46,
+    color: colors.text,
+    fontFamily: family.medium,
+    fontSize: font.body,
+  },
+  bwLogBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.lg,
+    height: 46,
+    borderRadius: radius.sm,
+    backgroundColor: colors.primary,
+  },
+  bwLogBtnDisabled: { opacity: 0.4 },
+  bwLogBtnPressed: { opacity: 0.85 },
+  bwLogBtnText: { color: colors.bg, fontFamily: family.bold, fontSize: font.label, letterSpacing: 0.8 },
 
   // Focus nudge
   focusNudge: {

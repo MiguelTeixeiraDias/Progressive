@@ -124,6 +124,7 @@ const DEFAULT_SETTINGS: Settings = {
   featuredExercises: ['ex_squat', 'ex_bench_press', 'ex_deadlift'],
   hiddenExerciseIds: [],
   customSplits: [],
+  muscleColors: {},
 };
 
 /** Default library minus the built-ins this user has hidden/deleted. */
@@ -221,6 +222,7 @@ export const useStore = create<StoreState>()(
               s.featuredExercises?.length ? s.featuredExercises : DEFAULT_SETTINGS.featuredExercises,
             hiddenExerciseIds: s.hiddenExerciseIds ?? [],
             customSplits: s.customSplits ?? [],
+            muscleColors: s.muscleColors ?? {},
           },
           hydrated: true,
         });

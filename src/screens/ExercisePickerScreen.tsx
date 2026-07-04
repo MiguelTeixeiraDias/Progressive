@@ -31,6 +31,25 @@ export default function ExercisePickerScreen({ navigation }: RootStackScreenProp
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [exercises, query, filter]);
 
+  // The lifts you actually use, newest-first — surfaced as one-tap chips so
+  // regulars don't have to search or scroll for the same exercises every time.
+  const recentExercises = useMemo(() => {
+    const seen = new Set<string>();
+    const result: Exercise[] = [];
+    for (const w of workouts) {
+      for (const we of w.exercises) {
+        if (seen.has(we.exerciseId)) continue;
+        const ex = exercises.find((e) => e.id === we.exerciseId);
+        if (!ex) continue;
+        seen.add(we.exerciseId);
+        result.push(ex);
+        if (result.length >= 8) return result;
+      }
+    }
+    return result;
+  }, [workouts, exercises]);
+  const showRecent = recentExercises.length > 0 && !query.trim() && filter === 'All';
+
   const subtitleFor = (ex: Exercise) => {
     const prev = lastPerformance(workouts, ex.id);
     if (!prev || prev.sets.length === 0) return null;
@@ -80,6 +99,25 @@ export default function ExercisePickerScreen({ navigation }: RootStackScreenProp
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
+          ListHeaderComponent={
+            showRecent ? (
+              <View style={styles.recentWrap}>
+                <Text style={styles.recentLabel}>RECENT · TAP TO ADD</Text>
+                <View style={styles.recentChips}>
+                  {recentExercises.map((ex) => (
+                    <Pressable
+                      key={ex.id}
+                      onPress={() => onPick(ex)}
+                      style={({ pressed }) => [styles.chip, pressed && styles.chipPressed]}
+                    >
+                      <Ionicons name="add" size={14} color={colors.primary} />
+                      <Text style={styles.chipText} numberOfLines={1}>{ex.name}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            ) : null
+          }
           ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
           renderItem={({ item }) => (
             <ExerciseCard
@@ -125,6 +163,23 @@ const styles = StyleSheet.create({
   createRowPressed: { opacity: 0.7 },
   createRowText: { color: colors.primary, fontFamily: family.semibold, fontSize: font.label, letterSpacing: 0.4 },
   list: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.xxl },
+  recentWrap: { marginBottom: spacing.md },
+  recentLabel: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 1.2, marginBottom: spacing.sm },
+  recentChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: colors.primaryDim,
+    maxWidth: 200,
+  },
+  chipPressed: { opacity: 0.7 },
+  chipText: { color: colors.text, fontFamily: family.semibold, fontSize: font.small, letterSpacing: 0.3, flexShrink: 1 },
   columnWrapper: { gap: spacing.sm },
   gridCard: { flex: 1 },
   empty: { color: colors.textDim, textAlign: 'center', marginTop: spacing.xl, fontFamily: family.body, fontSize: font.body },

@@ -18,7 +18,7 @@ import { PageWidth, PrimaryButton, WorkoutExerciseCard } from '../components';
 import { useResponsive } from '../hooks/useResponsive';
 import { TabScreenProps } from '../navigation/types';
 import { useStore } from '../store/useStore';
-import { MuscleGroup, WorkoutExercise, WorkoutTemplate } from '../types';
+import { MuscleGroup, TemplateExercise, WorkoutExercise, WorkoutTemplate } from '../types';
 import { colors, family, font, layout, radius, spacing } from '../theme';
 import { formatClock } from '../utils/format';
 import { lastPerformance, lastWorkout } from '../utils/stats';
@@ -59,6 +59,7 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
   const startWorkout = useStore((s) => s.startWorkout);
   const repeatLastWorkout = useStore((s) => s.repeatLastWorkout);
   const startWorkoutFromTemplate = useStore((s) => s.startWorkoutFromTemplate);
+  const addTemplate = useStore((s) => s.addTemplate);
   const renameWorkout = useStore((s) => s.renameWorkout);
   const discardWorkout = useStore((s) => s.discardWorkout);
   const finishWorkout = useStore((s) => s.finishWorkout);
@@ -98,6 +99,7 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
 
   const [confirmTpl, setConfirmTpl] = useState<WorkoutTemplate | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [startChooser, setStartChooser] = useState(false);
 
   // Superset linking — select 2+ ungrouped exercises, then confirm.
   const [linkMode, setLinkMode] = useState(false);
@@ -158,7 +160,7 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
           icon="add"
           size="lg"
           fullWidth
-          onPress={() => startWorkout('')}
+          onPress={() => setStartChooser(true)}
           style={styles.actionBtn}
         />
         <PrimaryButton
@@ -243,6 +245,57 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
           <Text style={styles.fabText}>TEMPLATE</Text>
         </Pressable>
 
+        {/* Choose how to begin — empty, or from a template */}
+        <Modal visible={startChooser} transparent animationType="fade" onRequestClose={() => setStartChooser(false)}>
+          <Pressable style={styles.confirmBackdrop} onPress={() => setStartChooser(false)}>
+            <Pressable style={styles.confirmDialog} onPress={() => {}}>
+              <Text style={styles.confirmKicker}>START A WORKOUT</Text>
+              <Text style={styles.confirmName}>CHOOSE HOW TO BEGIN</Text>
+              <Text style={styles.confirmCopy}>Start from scratch, or load one of your templates.</Text>
+              <PrimaryButton
+                title="Empty Workout"
+                icon="add"
+                size="md"
+                fullWidth
+                onPress={() => {
+                  setStartChooser(false);
+                  startWorkout('');
+                }}
+                style={styles.chooserEmptyBtn}
+              />
+              {templates.length > 0 ? (
+                <>
+                  <Text style={styles.chooserLabel}>OR START FROM A TEMPLATE</Text>
+                  <ScrollView style={styles.chooserList} showsVerticalScrollIndicator={false}>
+                    {templates.map((t) => (
+                      <Pressable
+                        key={t.id}
+                        onPress={() => {
+                          setStartChooser(false);
+                          startWorkoutFromTemplate(t.id);
+                        }}
+                        style={({ pressed }) => [styles.chooserRow, pressed && styles.tplRowPressed]}
+                      >
+                        <View style={styles.flex}>
+                          <Text style={styles.chooserName} numberOfLines={1}>{t.name.toUpperCase()}</Text>
+                          <Text style={styles.chooserMeta} numberOfLines={1}>
+                            {t.exercises.length} EXERCISES · {templateGroups(t).slice(0, 3).join(' / ').toUpperCase()}
+                          </Text>
+                        </View>
+                        <Ionicons name="arrow-forward" size={16} color={colors.primary} />
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </>
+              ) : (
+                <Text style={styles.chooserNoTpl}>
+                  No templates yet — start empty, then use “Save as Template” during your session.
+                </Text>
+              )}
+            </Pressable>
+          </Pressable>
+        </Modal>
+
         {/* Confirm before starting from a template */}
         <Modal visible={!!confirmTpl} transparent animationType="fade" onRequestClose={() => setConfirmTpl(null)}>
           <Pressable style={styles.confirmBackdrop} onPress={() => setConfirmTpl(null)}>
@@ -280,6 +333,21 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
     const wasComplete = !!we && we.sets.length > 0 && we.sets.every((s) => s.completed);
     completeExercise(weId);
     if (we && !wasComplete) showToast(`LOGGED · ${we.name.toUpperCase()}`, colors.primary);
+  };
+
+  const saveAsTemplate = () => {
+    const exercises: TemplateExercise[] = active.exercises.map((we) => ({
+      exerciseId: we.exerciseId,
+      exerciseName: we.name,
+      muscleGroup: we.muscleGroup,
+      notes: we.notes || undefined,
+    }));
+    if (exercises.length === 0) {
+      showToast('ADD AN EXERCISE FIRST', colors.primary);
+      return;
+    }
+    addTemplate(active.name.trim() || 'Template', exercises);
+    showToast('SAVED AS TEMPLATE', colors.primary);
   };
 
   const handleFinish = () => {
@@ -417,7 +485,12 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
                 {groups.map((g) => renderGroup(g))}
               </View>
               {!linkMode ? (
-                <PrimaryButton title="Add Exercise" icon="add" variant="secondary" size="md" fullWidth onPress={() => navigation.navigate('ExercisePicker')} />
+                <>
+                  <PrimaryButton title="Add Exercise" icon="add" variant="secondary" size="md" fullWidth onPress={() => navigation.navigate('ExercisePicker')} />
+                  {active.exercises.length > 0 ? (
+                    <PrimaryButton title="Save as Template" icon="bookmark-outline" variant="ghost" size="md" fullWidth onPress={saveAsTemplate} />
+                  ) : null}
+                </>
               ) : null}
             </>
           )}
@@ -532,6 +605,26 @@ const styles = StyleSheet.create({
   confirmMeta: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 0.8, marginTop: 4 },
   confirmCopy: { color: colors.textDim, fontFamily: family.body, fontSize: font.body, lineHeight: 21, marginTop: spacing.lg },
   confirmActions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.xl },
+
+  // Start chooser
+  chooserEmptyBtn: { marginTop: spacing.xl },
+  chooserLabel: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 1.4, marginTop: spacing.xl, marginBottom: spacing.md },
+  chooserList: { maxHeight: 240 },
+  chooserRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  chooserName: { color: colors.text, fontFamily: family.display, fontSize: font.h3, lineHeight: Math.ceil(font.h3 * 1.15), letterSpacing: 0.5, includeFontPadding: false },
+  chooserMeta: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 0.6, marginTop: 2 },
+  chooserNoTpl: { color: colors.textFaint, fontFamily: family.body, fontSize: font.small, lineHeight: 18, marginTop: spacing.xl },
 
   fab: {
     position: 'absolute',

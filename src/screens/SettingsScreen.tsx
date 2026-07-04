@@ -29,6 +29,7 @@ import {
   UnitPreference,
 } from '../types';
 import { colors, family, font, layout, radius, spacing } from '../theme';
+import { MUSCLE_COLOR_OPTIONS } from '../utils/color';
 
 const UNITS: UnitPreference[] = ['kg', 'lb'];
 const EXPERIENCE: ExperienceLevel[] = ['Beginner', 'Intermediate', 'Advanced'];
@@ -148,7 +149,7 @@ interface Draft {
   weeklyGoal: number;
   primaryFitnessGoal?: FitnessGoal;
   targetBodyWeight: string;
-  focusMuscleGroup?: MuscleGroup;
+  muscleColors: Partial<Record<MuscleGroup, string>>;
 }
 
 function toDraft(s: Settings): Draft {
@@ -163,7 +164,7 @@ function toDraft(s: Settings): Draft {
     weeklyGoal: s.weeklyGoal,
     primaryFitnessGoal: s.goals.primaryFitnessGoal,
     targetBodyWeight: numStr(s.goals.targetBodyWeight),
-    focusMuscleGroup: s.goals.focusMuscleGroup,
+    muscleColors: s.muscleColors ?? {},
   };
 }
 
@@ -209,8 +210,8 @@ export default function SettingsScreen({ navigation }: TabScreenProps<'Settings'
         ...settings.goals,
         primaryFitnessGoal: draft.primaryFitnessGoal,
         targetBodyWeight: parseNum(draft.targetBodyWeight),
-        focusMuscleGroup: draft.focusMuscleGroup,
       },
+      muscleColors: draft.muscleColors,
     });
     // Record a dated weigh-in whenever the current weight changes, so the
     // Progress bodyweight trend builds up over time.
@@ -401,16 +402,44 @@ export default function SettingsScreen({ navigation }: TabScreenProps<'Settings'
                   style={styles.input}
                 />
               </Field>
-              <Field label="FOCUS MUSCLE GROUP (OPTIONAL)">
-                <SelectField
-                  title="Focus muscle group"
-                  value={draft.focusMuscleGroup}
-                  options={MUSCLE_GROUPS}
-                  onSelect={(v) => patch({ focusMuscleGroup: v as MuscleGroup | undefined })}
-                  placeholder="None"
-                  clearable
-                />
-              </Field>
+            </View>
+          </View>
+  );
+
+  {/* Muscle group colors — a per-group accent used on badges across the app. */}
+  const muscleColorsSection = (
+          <View style={styles.section}>
+            <SectionHeader title="Muscle Group Colors" subtitle="Tap a swatch · lime is the default" />
+            <View style={styles.card}>
+              {MUSCLE_GROUPS.map((group) => {
+                const current = draft.muscleColors[group] ?? MUSCLE_COLOR_OPTIONS[0];
+                return (
+                  <View key={group} style={styles.colorRow}>
+                    <Text style={styles.colorGroupName}>{group.toUpperCase()}</Text>
+                    <View style={styles.swatches}>
+                      {MUSCLE_COLOR_OPTIONS.map((c) => {
+                        const sel = current.toLowerCase() === c.toLowerCase();
+                        const isDefault = c === MUSCLE_COLOR_OPTIONS[0];
+                        return (
+                          <Pressable
+                            key={c}
+                            onPress={() =>
+                              patch({
+                                muscleColors: isDefault
+                                  ? omitKey(draft.muscleColors, group)
+                                  : { ...draft.muscleColors, [group]: c },
+                              })
+                            }
+                            style={[styles.swatch, { backgroundColor: c }, sel && styles.swatchSelected]}
+                          >
+                            {sel ? <Ionicons name="checkmark" size={13} color={colors.bg} /> : null}
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+                );
+              })}
             </View>
           </View>
   );
@@ -456,6 +485,7 @@ export default function SettingsScreen({ navigation }: TabScreenProps<'Settings'
               <View style={styles.col}>
                 {splitsSection}
                 {goalsSection}
+                {muscleColorsSection}
                 {accountSection}
                 {footnote}
               </View>
@@ -467,6 +497,7 @@ export default function SettingsScreen({ navigation }: TabScreenProps<'Settings'
               {prefsSection}
               {bodySection}
               {goalsSection}
+              {muscleColorsSection}
               {accountSection}
               {footnote}
             </>
@@ -497,6 +528,16 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       {children}
     </View>
   );
+}
+
+/** Return a copy of the muscle-color map without one group (i.e. reset to default). */
+function omitKey(
+  obj: Partial<Record<MuscleGroup, string>>,
+  key: MuscleGroup,
+): Partial<Record<MuscleGroup, string>> {
+  const next = { ...obj };
+  delete next[key];
+  return next;
 }
 
 function numStr(n?: number): string {
@@ -600,6 +641,20 @@ const styles = StyleSheet.create({
   counterSign: { color: colors.text, fontFamily: family.semibold, fontSize: font.h3 },
   counterValue: { color: colors.text, fontFamily: family.display, fontSize: 30, lineHeight: 35, minWidth: 32, textAlign: 'center', includeFontPadding: false },
   counterUnit: { color: colors.textDim, fontFamily: family.body, fontSize: font.small, marginLeft: spacing.sm },
+  // Muscle group colors
+  colorRow: { gap: spacing.sm },
+  colorGroupName: { color: colors.text, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 1 },
+  swatches: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  swatch: {
+    width: 30,
+    height: 30,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  swatchSelected: { borderWidth: 2, borderColor: colors.text },
   accountEmail: { color: colors.text, fontFamily: family.medium, fontSize: font.body },
   footnote: { color: colors.textFaint, fontFamily: family.body, fontSize: font.small, lineHeight: 18 },
   footer: {

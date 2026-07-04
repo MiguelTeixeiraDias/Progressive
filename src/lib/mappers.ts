@@ -36,6 +36,7 @@ export interface ProfileRow {
   hidden_exercise_ids: string[] | null;
   custom_splits: CustomSplit[] | null;
   active_split_id: string | null;
+  muscle_colors: Partial<Record<MuscleGroup, string>> | null;
 }
 
 export interface ExerciseRow {
@@ -197,6 +198,7 @@ export function rowToSettings(r: ProfileRow): Settings {
     hiddenExerciseIds: r.hidden_exercise_ids ?? [],
     customSplits: r.custom_splits ?? [],
     activeSplitId: r.active_split_id ?? undefined,
+    muscleColors: r.muscle_colors ?? {},
   };
 }
 
@@ -220,6 +222,7 @@ export function settingsToProfileRow(userId: string, s: Settings): ProfileRow & 
     hidden_exercise_ids: s.hiddenExerciseIds ?? [],
     custom_splits: s.customSplits ?? [],
     active_split_id: s.activeSplitId ?? null,
+    muscle_colors: s.muscleColors ?? {},
   };
 }
 

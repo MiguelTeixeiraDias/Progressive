@@ -19,6 +19,7 @@ export default function SectionHeader({ title, subtitle, actionLabel, onAction }
         <View style={styles.titleLine}>
           <View style={styles.tick} />
           <Text style={styles.title}>{title.toUpperCase()}</Text>
+          <View style={styles.rule} />
         </View>
         {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
       </View>
@@ -42,6 +43,7 @@ const styles = StyleSheet.create({
   titleWrap: { flex: 1 },
   titleLine: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   tick: { width: 3, height: 18, backgroundColor: colors.primary },
+  rule: { flex: 1, height: 1, backgroundColor: colors.border, marginLeft: spacing.sm },
   title: {
     color: colors.text,
     fontFamily: family.display,

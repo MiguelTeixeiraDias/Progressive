@@ -184,6 +184,8 @@ export interface Settings {
   customSplits: CustomSplit[];
   /** Id of the custom split used when preferredSplit is 'Custom'. */
   activeSplitId?: string;
+  /** Per-muscle-group accent overrides. Unset groups fall back to the lime accent. */
+  muscleColors: Partial<Record<MuscleGroup, string>>;
 }
 
 /** Returned by finishWorkout() to power the celebration screen. */

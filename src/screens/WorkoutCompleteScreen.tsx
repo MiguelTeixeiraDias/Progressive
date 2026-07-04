@@ -5,11 +5,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { KPICard, MuscleGroupBadge, PageWidth, PersonalBestBadge, PrimaryButton } from '../components';
 import { RootStackScreenProps } from '../navigation/types';
+import { useStore } from '../store/useStore';
 import { colors, family, font, layout, radius, spacing } from '../theme';
-import { formatDuration, formatWeight, signedPct } from '../utils/format';
+import { formatClock, formatDuration, formatWeight, signedPct } from '../utils/format';
 
 export default function WorkoutCompleteScreen({ route, navigation }: RootStackScreenProps<'WorkoutComplete'>) {
   const s = route.params.summary;
+  // Pull the just-saved session so we can show exactly what was logged, not just
+  // the aggregate stats — otherwise finishing feels like it only recorded "a
+  // workout happened" without the exercises and sets behind it.
+  const session = useStore((st) => st.workouts.find((w) => w.id === s.sessionId));
   // Reset the root stack to a fresh Tabs route so the completion screen never
   // lingers underneath the tabs. Without this, navigating back leaves
   // WorkoutComplete in the stack and every later screen reads as a modal stacked
@@ -83,6 +88,32 @@ export default function WorkoutCompleteScreen({ route, navigation }: RootStackSc
           </View>
         ) : null}
 
+        {session && session.exercises.length > 0 ? (
+          <View style={styles.logSection}>
+            <Text style={styles.logTitle}>WHAT YOU LOGGED</Text>
+            <View style={styles.logList}>
+              {session.exercises.map((we) => {
+                const cardio = we.muscleGroup === 'Cardio';
+                return (
+                  <View key={we.id} style={styles.logRow}>
+                    <View style={styles.logHead}>
+                      <Text style={styles.logName} numberOfLines={1}>{we.name}</Text>
+                      <Text style={styles.logCount}>
+                        {we.sets.length} {we.sets.length === 1 ? 'SET' : 'SETS'}
+                      </Text>
+                    </View>
+                    <Text style={styles.logSets}>
+                      {cardio
+                        ? we.sets.map((set) => formatClock(set.durationSec ?? 0)).join('   ·   ')
+                        : we.sets.map((set) => `${formatWeight(set.weight)}kg × ${set.reps}`).join('   ·   ')}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
+
         <Text style={styles.message}>{message}</Text>
       </ScrollView>
 
@@ -128,6 +159,24 @@ const styles = StyleSheet.create({
   bannerText: { color: colors.primary, fontFamily: family.semibold, fontSize: font.small, letterSpacing: 0.8, flex: 1 },
   prSection: { width: '100%', marginTop: spacing.xxl },
   prTitle: { color: colors.text, fontFamily: family.display, fontSize: font.h3, lineHeight: Math.ceil(font.h3 * 1.15), letterSpacing: 1, marginBottom: spacing.md, includeFontPadding: false },
+
+  // What-you-logged breakdown
+  logSection: { width: '100%', marginTop: spacing.xxl },
+  logTitle: { color: colors.text, fontFamily: family.display, fontSize: font.h3, lineHeight: Math.ceil(font.h3 * 1.15), letterSpacing: 1, marginBottom: spacing.md, includeFontPadding: false },
+  logList: { gap: spacing.sm },
+  logRow: {
+    backgroundColor: colors.card,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    gap: 4,
+  },
+  logHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
+  logName: { flex: 1, color: colors.text, fontFamily: family.semibold, fontSize: font.body },
+  logCount: { color: colors.textFaint, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 0.8 },
+  logSets: { color: colors.textDim, fontFamily: family.body, fontSize: font.small, lineHeight: 19 },
   message: { color: colors.textDim, fontFamily: family.body, fontSize: font.body, textAlign: 'center', marginTop: spacing.xxl, lineHeight: 22, paddingHorizontal: spacing.md },
   footer: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.md, borderTopWidth: 1, borderTopColor: colors.border },
 });

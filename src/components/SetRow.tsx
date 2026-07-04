@@ -91,8 +91,13 @@ function SetRow({
         </Text>
         {done ? <Text style={styles.doneTag}>DONE</Text> : null}
         {!cardio && onToggleDropSet ? (
-          <Pressable onPress={onToggleDropSet} hitSlop={8} style={styles.dropToggle}>
-            <Ionicons name="flash" size={15} color={isDropSet ? colors.primary : colors.textFaint} />
+          <Pressable
+            onPress={onToggleDropSet}
+            hitSlop={8}
+            style={[styles.dropToggle, isDropSet && styles.dropToggleOn]}
+          >
+            <Ionicons name="flash" size={12} color={isDropSet ? colors.bg : colors.primary} />
+            <Text style={[styles.dropToggleText, isDropSet && styles.dropToggleTextOn]}>DROP SET</Text>
           </Pressable>
         ) : null}
         {onRemove && !done ? (
@@ -204,7 +209,19 @@ const styles = StyleSheet.create({
   badgeText: { color: colors.text, fontFamily: family.display, fontSize: font.label, includeFontPadding: false },
   hint: { flex: 1, color: colors.textFaint, fontFamily: family.body, fontSize: font.tiny, letterSpacing: 0.6 },
   remove: { padding: 4 },
-  dropToggle: { padding: 4 },
+  dropToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: radius.xs,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  dropToggleOn: { backgroundColor: colors.primary },
+  dropToggleText: { color: colors.primary, fontFamily: family.bold, fontSize: font.tiny, letterSpacing: 0.8 },
+  dropToggleTextOn: { color: colors.bg },
   doneTag: { color: colors.primary, fontFamily: family.semibold, fontSize: font.tiny, letterSpacing: 1 },
   controls: { flexDirection: 'row', alignItems: 'flex-end' },
   field: { flex: 1, alignItems: 'center', gap: 6 },

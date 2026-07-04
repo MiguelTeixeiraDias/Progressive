@@ -3,8 +3,6 @@ import React, { useMemo, useState } from 'react';
 import {
   FlatList,
   Modal,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -140,20 +138,6 @@ export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'
     setQuery('');
     setFilter('All');
   };
-
-  // PR card scroll affordance (vertical progress indicator).
-  const [pr, setPr] = useState({ y: 0, content: 0, layout: 0 });
-  const onPrScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    // Read synchronously — the synthetic event is pooled/nullified before the
-    // state updater runs, so capturing it inside setPr would crash.
-    const y = e.nativeEvent.contentOffset.y;
-    setPr((p) => ({ ...p, y }));
-  };
-  const prScrollable = pr.content > pr.layout + 4;
-  const prThumbH = prScrollable ? Math.max(28, (pr.layout / pr.content) * pr.layout) : 0;
-  const prThumbY = prScrollable
-    ? (pr.y / (pr.content - pr.layout)) * (pr.layout - prThumbH)
-    : 0;
 
   if (workouts.length === 0) {
     return (
@@ -392,39 +376,21 @@ export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'
     </View>
   );
 
-  // Personal records — scroll within the card
+  // Personal records — rendered inline so the whole page scrolls as one, rather
+  // than a nested scroll view that only takes over once the page bottoms out.
   const personalRecordsEl = (
     <View style={styles.section}>
-      <SectionHeader title="Personal Records" subtitle="Your heaviest lifts · scroll for more" />
-      <View style={styles.prWrap}>
-        <ScrollView
-          style={styles.prScroll}
-          nestedScrollEnabled
-          showsVerticalScrollIndicator={false}
-          scrollEventThrottle={16}
-          onScroll={onPrScroll}
-          onLayout={(e) => {
-            const h = e.nativeEvent.layout.height;
-            setPr((p) => ({ ...p, layout: h }));
-          }}
-          onContentSizeChange={(_w, h) => setPr((p) => ({ ...p, content: h }))}
-          contentContainerStyle={styles.prScrollContent}
-        >
-          {data.prs.map((rec) => (
-            <Pressable key={rec.exerciseId} onPress={() => navigation.navigate('ExerciseDetail', { exerciseId: rec.exerciseId })}>
-              <PersonalBestBadge
-                title={rec.exerciseName}
-                value={`${formatWeight(rec.maxWeight)} kg`}
-                caption={`${rec.repsAtMaxWeight} reps · e1RM ${formatWeight(rec.estimatedOneRepMax)} kg`}
-              />
-            </Pressable>
-          ))}
-        </ScrollView>
-        {prScrollable ? (
-          <View style={styles.prTrack} pointerEvents="none">
-            <View style={[styles.prThumb, { height: prThumbH, transform: [{ translateY: prThumbY }] }]} />
-          </View>
-        ) : null}
+      <SectionHeader title="Personal Records" subtitle="Your heaviest lifts" />
+      <View style={styles.prList}>
+        {data.prs.map((rec) => (
+          <Pressable key={rec.exerciseId} onPress={() => navigation.navigate('ExerciseDetail', { exerciseId: rec.exerciseId })}>
+            <PersonalBestBadge
+              title={rec.exerciseName}
+              value={`${formatWeight(rec.maxWeight)} kg`}
+              caption={`${rec.repsAtMaxWeight} reps · e1RM ${formatWeight(rec.estimatedOneRepMax)} kg`}
+            />
+          </Pressable>
+        ))}
       </View>
     </View>
   );
@@ -626,11 +592,7 @@ const styles = StyleSheet.create({
   bwLogBtnText: { color: colors.bg, fontFamily: family.bold, fontSize: font.label, letterSpacing: 0.8 },
 
   // Personal records
-  prWrap: { position: 'relative' },
-  prScroll: { maxHeight: 392 },
-  prScrollContent: { gap: spacing.sm, paddingBottom: 2, paddingRight: spacing.sm },
-  prTrack: { position: 'absolute', right: 0, top: 4, bottom: 4, width: 3, borderRadius: 2, backgroundColor: withAlpha(colors.text, 0.08) },
-  prThumb: { width: 3, borderRadius: 2, backgroundColor: colors.primary },
+  prList: { gap: spacing.sm },
 
   // Modals
   modalBackdrop: { flex: 1, backgroundColor: colors.overlay, justifyContent: 'flex-end', alignItems: 'center' },
