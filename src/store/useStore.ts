@@ -3,17 +3,8 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { DEFAULT_EXERCISES } from '../data/exercises';
-import {
-  deleteCustomExercise as deleteCustomExerciseRemote,
-  deleteTemplate as deleteTemplateRemote,
-  fireAndForget,
-  loadUserData,
-  saveBodyWeight,
-  saveCustomExercise,
-  saveSettings,
-  saveTemplate,
-  saveWorkout,
-} from '../lib/sync';
+import { loadUserData } from '../lib/sync';
+import { drain as drainOutbox, enqueue } from '../lib/outbox';
 import {
   BodyWeightEntry,
   DropStage,
@@ -81,6 +72,8 @@ interface StoreState {
   repeatLastWorkout: () => boolean;
   discardWorkout: () => void;
   renameWorkout: (name: string) => void;
+  /** Restore a prior snapshot of the active session (used to undo a removal). */
+  replaceActiveWorkout: (session: WorkoutSession) => void;
   finishWorkout: () => WorkoutSummary | null;
 
   // active session mutations
@@ -229,18 +222,42 @@ export const useStore = create<StoreState>()(
       },
 
       loadFromServer: async (userId) => {
+        // Drain any writes queued while offline first, so the server reflects them
+        // before we read back and merge.
+        await drainOutbox();
         const data = await loadUserData(userId);
         const settings = data.settings ?? DEFAULT_SETTINGS;
+        const local = get();
+
+        // Workouts and weigh-ins are append-only (never deleted in-app), so union
+        // by id/date — server wins on conflict — to guarantee a session or weigh-in
+        // that failed to sync offline is never lost. Templates, custom exercises
+        // and settings stay server-authoritative so deletions are honoured.
+        const mergeWorkouts = () => {
+          const byId = new Map<string, WorkoutSession>();
+          for (const w of local.workouts) byId.set(w.id, w);
+          for (const w of data.workouts) byId.set(w.id, w); // server overrides
+          return [...byId.values()].sort((a, b) => b.startedAt - a.startedAt);
+        };
+        const mergeBodyWeights = () => {
+          const byDate = new Map<string, BodyWeightEntry>();
+          for (const e of local.bodyWeights) byDate.set(e.date, e);
+          for (const e of data.bodyWeights) byDate.set(e.date, e);
+          return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+        };
+
         set({
           userId,
           // Custom (server) exercises first, then the default library minus any
           // built-ins this user has hidden.
           exercises: [...data.customExercises, ...visibleDefaults(settings.hiddenExerciseIds)],
-          workouts: data.workouts,
+          // Merge unconditionally: sign-out clears local data (resetLocal), so any
+          // restored local workouts/weigh-ins belong to the account signing in.
+          workouts: mergeWorkouts(),
           templates: data.templates,
           settings,
-          bodyWeights: data.bodyWeights,
-          activeWorkout: get().userId === userId ? get().activeWorkout : null,
+          bodyWeights: mergeBodyWeights(),
+          activeWorkout: local.userId === userId ? local.activeWorkout : null,
         });
       },
 
@@ -277,7 +294,7 @@ export const useStore = create<StoreState>()(
         };
         set((s) => ({ templates: [template, ...s.templates] }));
         const userId = get().userId;
-        if (userId) fireAndForget('saveTemplate', saveTemplate(userId, template));
+        if (userId) enqueue(userId, { kind: 'template', payload: template });
         return template;
       },
 
@@ -296,18 +313,19 @@ export const useStore = create<StoreState>()(
         }));
         const userId = get().userId;
         const updated = get().templates.find((t) => t.id === id);
-        if (userId && updated) fireAndForget('saveTemplate', saveTemplate(userId, updated));
+        if (userId && updated) enqueue(userId, { kind: 'template', payload: updated });
       },
 
       deleteTemplate: (id) => {
         set((s) => ({ templates: s.templates.filter((t) => t.id !== id) }));
-        if (get().userId) fireAndForget('deleteTemplate', deleteTemplateRemote(id));
+        const userId = get().userId;
+        if (userId) enqueue(userId, { kind: 'templateDelete', payload: { id } });
       },
 
       updateSettings: (patch) => {
         set((s) => ({ settings: { ...s.settings, ...patch } }));
         const userId = get().userId;
-        if (userId) fireAndForget('saveSettings', saveSettings(userId, get().settings));
+        if (userId) enqueue(userId, { kind: 'settings', payload: get().settings });
       },
 
       addExercise: (name, muscleGroup) => {
@@ -319,7 +337,7 @@ export const useStore = create<StoreState>()(
         };
         set((s) => ({ exercises: [exercise, ...s.exercises] }));
         const userId = get().userId;
-        if (userId) fireAndForget('saveCustomExercise', saveCustomExercise(userId, exercise));
+        if (userId) enqueue(userId, { kind: 'customExercise', payload: exercise });
         return exercise;
       },
 
@@ -352,8 +370,8 @@ export const useStore = create<StoreState>()(
 
         const userId = get().userId;
         if (userId) {
-          if (isCustom) fireAndForget('deleteCustomExercise', deleteCustomExerciseRemote(id));
-          if (settingsChanged) fireAndForget('saveSettings', saveSettings(userId, get().settings));
+          if (isCustom) enqueue(userId, { kind: 'exerciseDelete', payload: { id } });
+          if (settingsChanged) enqueue(userId, { kind: 'settings', payload: get().settings });
         }
       },
 
@@ -372,7 +390,7 @@ export const useStore = create<StoreState>()(
         }));
 
         const userId = get().userId;
-        if (userId) fireAndForget('saveBodyWeight', saveBodyWeight(userId, entry));
+        if (userId) enqueue(userId, { kind: 'bodyWeight', payload: entry });
       },
 
       startWorkout: (name) => {
@@ -446,6 +464,8 @@ export const useStore = create<StoreState>()(
         set({ activeWorkout: { ...active, name } });
       },
 
+      replaceActiveWorkout: (session) => set({ activeWorkout: session }),
+
       finishWorkout: () => {
         const active = get().activeWorkout;
         if (!active) return null;
@@ -504,7 +524,7 @@ export const useStore = create<StoreState>()(
         set((s) => ({ workouts: [session, ...s.workouts], activeWorkout: null }));
 
         const userId = get().userId;
-        if (userId) fireAndForget('saveWorkout', saveWorkout(userId, session));
+        if (userId) enqueue(userId, { kind: 'workout', payload: session });
 
         const muscleGroups = Array.from(
           new Set(exercises.map((e) => e.muscleGroup)),

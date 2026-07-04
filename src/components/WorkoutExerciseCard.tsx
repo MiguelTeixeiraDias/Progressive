@@ -3,8 +3,9 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { DropStage, SetEntry, WorkoutExercise } from '../types';
+import { useStore } from '../store/useStore';
 import { colors, family, font, radius, spacing } from '../theme';
-import { formatClock } from '../utils/format';
+import { formatClock, formatWeight } from '../utils/format';
 import Card from './Card';
 import MuscleGroupBadge from './MuscleGroupBadge';
 import PrimaryButton from './PrimaryButton';
@@ -44,6 +45,7 @@ export default function WorkoutExerciseCard({
   onUpdateDropStage,
   onRemoveDropStage,
 }: WorkoutExerciseCardProps) {
+  const unit = useStore((s) => s.settings.unit);
   const cardio = exercise.muscleGroup === 'Cardio';
   const completedCount = exercise.sets.filter((s) => s.completed).length;
   const isComplete = exercise.sets.length > 0 && completedCount === exercise.sets.length;
@@ -51,7 +53,9 @@ export default function WorkoutExerciseCard({
   const hintFor = (i: number) => {
     const prev = previousSets && previousSets[i];
     if (!prev) return null;
-    return cardio ? formatClock(prev.durationSec ?? 0) : `${prev.weight}kg × ${prev.reps}`;
+    return cardio
+      ? formatClock(prev.durationSec ?? 0)
+      : `${formatWeight(prev.weight, unit)}${unit} × ${prev.reps}`;
   };
 
   return (

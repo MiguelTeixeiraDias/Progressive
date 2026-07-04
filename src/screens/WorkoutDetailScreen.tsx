@@ -8,7 +8,7 @@ import { RootStackScreenProps } from '../navigation/types';
 import { useStore } from '../store/useStore';
 import { colors, family, font, layout, radius, spacing } from '../theme';
 import { fullDate } from '../utils/date';
-import { formatClock, formatDuration, formatVolume } from '../utils/format';
+import { formatClock, formatDuration, formatVolume, formatWeight } from '../utils/format';
 import { exerciseVolume, sessionSetCount, setVolume } from '../utils/stats';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -26,6 +26,8 @@ export default function WorkoutDetailScreen({ route, navigation }: RootStackScre
   const { sessionId } = route.params;
   const workouts = useStore((s) => s.workouts);
   const startWorkoutFrom = useStore((s) => s.startWorkoutFrom);
+  const unit = useStore((s) => s.settings.unit);
+  const unitUpper = unit.toUpperCase();
   const session = workouts.find((w) => w.id === sessionId);
 
   if (!session) {
@@ -63,7 +65,7 @@ export default function WorkoutDetailScreen({ route, navigation }: RootStackScre
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.statsBar}>
           <StatPill icon="time-outline" value={formatDuration(session.durationSec)} accent={colors.text} />
-          <StatPill icon="barbell-outline" value={`${formatVolume(session.totalVolume)} KG`} accent={colors.primary} />
+          <StatPill icon="barbell-outline" value={`${formatVolume(session.totalVolume, unit)} ${unitUpper}`} accent={colors.primary} />
           <StatPill icon="layers-outline" value={`${sessionSetCount(session, true)} SETS`} accent={colors.text} />
         </View>
 
@@ -76,7 +78,7 @@ export default function WorkoutDetailScreen({ route, navigation }: RootStackScre
                   <MuscleGroupBadge group={we.muscleGroup} size="sm" />
                 </View>
               </View>
-              <Text style={styles.exVolume}>{formatVolume(exerciseVolume(we, true))} KG</Text>
+              <Text style={styles.exVolume}>{formatVolume(exerciseVolume(we, true), unit)} {unitUpper}</Text>
             </View>
 
             {we.notes ? (
@@ -96,13 +98,13 @@ export default function WorkoutDetailScreen({ route, navigation }: RootStackScre
                         <Text style={styles.setBadgeText}>{i + 1}</Text>
                       </View>
                       <Text style={styles.setMain}>
-                        {isCardio ? formatClock(s.durationSec ?? 0) : `${s.weight}kg × ${s.reps}`}
+                        {isCardio ? formatClock(s.durationSec ?? 0) : `${formatWeight(s.weight, unit)}${unit} × ${s.reps}`}
                       </Text>
-                      {!isCardio ? <Text style={styles.setVol}>{formatVolume(setVolume(s))} kg</Text> : null}
+                      {!isCardio ? <Text style={styles.setVol}>{formatVolume(setVolume(s), unit)} {unit}</Text> : null}
                     </View>
                     {s.drops?.length ? (
                       <Text style={styles.dropsLine}>
-                        ↳ DROPS · {s.drops.map((d) => `${d.weight}kg×${d.reps}`).join(', ')}
+                        ↳ DROPS · {s.drops.map((d) => `${formatWeight(d.weight, unit)}${unit}×${d.reps}`).join(', ')}
                       </Text>
                     ) : null}
                   </View>

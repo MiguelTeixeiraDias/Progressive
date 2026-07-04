@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
@@ -12,6 +12,7 @@ import {
   PrimaryButton,
   SectionHeader,
   StreakCalendarModal,
+  WeightLogger,
   WorkoutSummaryCard,
 } from '../components';
 import { useResponsive } from '../hooks/useResponsive';
@@ -63,7 +64,6 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
   const updateSettings = useStore((s) => s.updateSettings);
 
   const [streakOpen, setStreakOpen] = useState(false);
-  const [weightInput, setWeightInput] = useState('');
   const { isDesktop } = useResponsive();
 
   const m = useMemo(() => {
@@ -83,6 +83,7 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
 
   // Coaching cues derived from the profile/goal data in Settings.
   const unit = settings.unit.toUpperCase();
+  const wUnit = settings.unit; // raw unit for lifting-weight conversion (kg canonical)
   // Prefer the latest logged weigh-in; fall back to the Settings body stat.
   const loggedCurrent = bodyWeights.length ? bodyWeights[bodyWeights.length - 1].weight : null;
   const bodyWeight = loggedCurrent ?? settings.bodyStats.currentWeight ?? null;
@@ -102,13 +103,10 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
   const bwStart = bodyWeights.length ? bodyWeights[0].weight : null;
   const bwDelta = loggedCurrent !== null && bwStart !== null ? loggedCurrent - bwStart : null;
 
-  const onLogWeight = () => {
-    const n = parseFloat(weightInput.replace(',', '.'));
-    if (!Number.isFinite(n) || n <= 0) return;
+  const onLogWeight = (n: number) => {
     logBodyWeight(n);
     // Keep the Settings body stat in sync so BMI and target coaching stay fresh.
     updateSettings({ bodyStats: { ...settings.bodyStats, currentWeight: n } });
-    setWeightInput('');
   };
   const trainNext = useMemo(() => {
     const rot = activeSplitRotation(settings);
@@ -248,30 +246,12 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
 
   // Inline weigh-in logger — shared by the empty and populated states.
   const weightLogger = (
-    <View style={styles.bwLogRow}>
-      <TextInput
-        value={weightInput}
-        onChangeText={setWeightInput}
-        placeholder={loggedCurrent !== null ? formatWeight(loggedCurrent) : `Weight in ${unit.toLowerCase()}`}
-        placeholderTextColor={colors.textFaint}
-        keyboardType="decimal-pad"
-        returnKeyType="done"
-        onSubmitEditing={onLogWeight}
-        style={styles.bwInput}
-      />
-      <Pressable
-        onPress={onLogWeight}
-        disabled={!weightInput.trim()}
-        style={({ pressed }) => [
-          styles.bwLogBtn,
-          !weightInput.trim() && styles.bwLogBtnDisabled,
-          pressed && styles.bwLogBtnPressed,
-        ]}
-      >
-        <Ionicons name="add" size={18} color={colors.bg} />
-        <Text style={styles.bwLogBtnText}>UPDATE</Text>
-      </Pressable>
-    </View>
+    <WeightLogger
+      current={loggedCurrent}
+      unit={unit}
+      actionLabel={loggedCurrent !== null ? 'UPDATE' : 'LOG'}
+      onLog={onLogWeight}
+    />
   );
 
   // Body — last recorded weight, BMI, a progress trend line and an update button
@@ -336,7 +316,7 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
         <>
           <View style={styles.improvedRow}>
             <Text style={styles.improvedName}>{m.improved.name.toUpperCase()}</Text>
-            <Text style={styles.improvedDelta}>+{formatWeight(m.improved.deltaWeight)} KG</Text>
+            <Text style={styles.improvedDelta}>+{formatWeight(m.improved.deltaWeight, wUnit)} {unit}</Text>
           </View>
           <Text style={styles.improvedLine}>
             Up {Math.round(m.improved.deltaPct)}% on your top set since you started tracking it.
@@ -418,11 +398,11 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
             <View style={styles.targetCueRow}>
               <Ionicons name="arrow-up-circle" size={16} color={colors.primary} />
               <Text style={styles.targetCue}>
-                Try +{formatWeight(targetIncrement)}kg next time
+                Try +{formatWeight(targetIncrement, wUnit)}{wUnit} next time
               </Text>
             </View>
             <Text style={styles.targetMeta}>
-              Last top set · {formatWeight(m.target.topWeight)}kg × {m.target.reps} reps
+              Last top set · {formatWeight(m.target.topWeight, wUnit)}{wUnit} × {m.target.reps} reps
             </Text>
             {reps ? (
               <Text style={styles.targetGuidance}>{reps.note}</Text>
@@ -581,31 +561,6 @@ const styles = StyleSheet.create({
   bodyStatLabel: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 1, marginTop: 2 },
   bodyTarget: { color: colors.textDim, fontFamily: family.body, fontSize: font.small, marginTop: spacing.md, lineHeight: 19 },
   bodyChart: { marginTop: spacing.lg },
-  bwLogRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg },
-  bwInput: {
-    flex: 1,
-    backgroundColor: colors.card2,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.lg,
-    height: 46,
-    color: colors.text,
-    fontFamily: family.medium,
-    fontSize: font.body,
-  },
-  bwLogBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    paddingHorizontal: spacing.lg,
-    height: 46,
-    borderRadius: radius.sm,
-    backgroundColor: colors.primary,
-  },
-  bwLogBtnDisabled: { opacity: 0.4 },
-  bwLogBtnPressed: { opacity: 0.85 },
-  bwLogBtnText: { color: colors.bg, fontFamily: family.bold, fontSize: font.label, letterSpacing: 0.8 },
 
   // Focus nudge
   focusNudge: {

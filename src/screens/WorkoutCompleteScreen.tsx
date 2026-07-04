@@ -15,6 +15,7 @@ export default function WorkoutCompleteScreen({ route, navigation }: RootStackSc
   // the aggregate stats — otherwise finishing feels like it only recorded "a
   // workout happened" without the exercises and sets behind it.
   const session = useStore((st) => st.workouts.find((w) => w.id === s.sessionId));
+  const unit = useStore((st) => st.settings.unit);
   // Reset the root stack to a fresh Tabs route so the completion screen never
   // lingers underneath the tabs. Without this, navigating back leaves
   // WorkoutComplete in the stack and every later screen reads as a modal stacked
@@ -80,8 +81,8 @@ export default function WorkoutCompleteScreen({ route, navigation }: RootStackSc
                 <PersonalBestBadge
                   key={`${pr.exerciseName}-${i}`}
                   title={pr.exerciseName}
-                  value={`${formatWeight(pr.weight)} kg`}
-                  caption={`${pr.reps} reps · e1RM ${formatWeight(pr.e1rm)} kg`}
+                  value={`${formatWeight(pr.weight, unit)} ${unit}`}
+                  caption={`${pr.reps} reps · e1RM ${formatWeight(pr.e1rm, unit)} ${unit}`}
                 />
               ))}
             </View>
@@ -105,7 +106,7 @@ export default function WorkoutCompleteScreen({ route, navigation }: RootStackSc
                     <Text style={styles.logSets}>
                       {cardio
                         ? we.sets.map((set) => formatClock(set.durationSec ?? 0)).join('   ·   ')
-                        : we.sets.map((set) => `${formatWeight(set.weight)}kg × ${set.reps}`).join('   ·   ')}
+                        : we.sets.map((set) => `${formatWeight(set.weight, unit)}${unit} × ${set.reps}`).join('   ·   ')}
                     </Text>
                   </View>
                 );

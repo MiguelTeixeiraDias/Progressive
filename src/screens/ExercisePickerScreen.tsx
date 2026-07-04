@@ -10,13 +10,14 @@ import { useStore } from '../store/useStore';
 import { Exercise } from '../types';
 import { colors, family, font, layout, radius, spacing } from '../theme';
 import { relativeDay } from '../utils/date';
-import { formatClock } from '../utils/format';
+import { formatClock, formatWeight } from '../utils/format';
 import { lastPerformance } from '../utils/stats';
 
 export default function ExercisePickerScreen({ navigation }: RootStackScreenProps<'ExercisePicker'>) {
   const exercises = useStore((s) => s.exercises);
   const workouts = useStore((s) => s.workouts);
   const addExerciseToWorkout = useStore((s) => s.addExerciseToWorkout);
+  const unit = useStore((s) => s.settings.unit);
 
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<MuscleFilter>('All');
@@ -58,7 +59,7 @@ export default function ExercisePickerScreen({ navigation }: RootStackScreenProp
       return `${formatClock(top.durationSec ?? 0)} · ${relativeDay(prev.date)}`;
     }
     const top = prev.sets.reduce((a, b) => (b.weight > a.weight ? b : a));
-    return `${top.weight}kg × ${top.reps} · ${relativeDay(prev.date)}`;
+    return `${formatWeight(top.weight, unit)}${unit} × ${top.reps} · ${relativeDay(prev.date)}`;
   };
 
   const onPick = (ex: Exercise) => {

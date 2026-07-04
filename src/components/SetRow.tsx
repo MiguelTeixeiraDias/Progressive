@@ -5,7 +5,7 @@ import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { DropStage, SetEntry } from '../types';
 import { useStore } from '../store/useStore';
 import { colors, family, font, radius, spacing } from '../theme';
-import { formatClock } from '../utils/format';
+import { formatClock, kgToUnit, unitToKg, weightStep } from '../utils/format';
 import Stepper from './Stepper';
 
 interface SetRowProps {
@@ -94,6 +94,9 @@ function SetRow({
           <Pressable
             onPress={onToggleDropSet}
             hitSlop={8}
+            accessibilityRole="button"
+            accessibilityState={{ selected: isDropSet }}
+            accessibilityLabel={isDropSet ? 'Remove drop set' : 'Make this a drop set'}
             style={[styles.dropToggle, isDropSet && styles.dropToggleOn]}
           >
             <Ionicons name="flash" size={12} color={isDropSet ? colors.bg : colors.primary} />
@@ -101,7 +104,13 @@ function SetRow({
           </Pressable>
         ) : null}
         {onRemove && !done ? (
-          <Pressable onPress={onRemove} hitSlop={8} style={styles.remove}>
+          <Pressable
+            onPress={onRemove}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={`Remove set ${index}`}
+            style={styles.remove}
+          >
             <Ionicons name="trash-outline" size={15} color={colors.textFaint} />
           </Pressable>
         ) : null}
@@ -128,7 +137,13 @@ function SetRow({
           <View style={styles.controls}>
             <View style={styles.field}>
               <Text style={styles.fieldLabel}>WEIGHT · {unit.toUpperCase()}</Text>
-              <Stepper value={set.weight} onChange={(weight) => onChange({ weight })} step={2.5} decimal size="sm" />
+              <Stepper
+                value={kgToUnit(set.weight, unit)}
+                onChange={(w) => onChange({ weight: unitToKg(w, unit) })}
+                step={weightStep(unit)}
+                decimal
+                size="sm"
+              />
             </View>
             <View style={styles.divider} />
             <View style={styles.field}>
@@ -144,9 +159,9 @@ function SetRow({
                   <Text style={styles.dropIndex}>↳{i + 1}</Text>
                   <View style={styles.dropField}>
                     <Stepper
-                      value={stage.weight}
-                      onChange={(weight) => onUpdateDropStage?.(stage.id, { weight })}
-                      step={2.5}
+                      value={kgToUnit(stage.weight, unit)}
+                      onChange={(w) => onUpdateDropStage?.(stage.id, { weight: unitToKg(w, unit) })}
+                      step={weightStep(unit)}
                       decimal
                       size="sm"
                     />

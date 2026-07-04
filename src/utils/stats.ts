@@ -3,6 +3,7 @@ import {
   MuscleGroup,
   PersonalRecord,
   SetEntry,
+  UnitPreference,
   WorkoutExercise,
   WorkoutSession,
 } from '../types';
@@ -1032,13 +1033,14 @@ export function lastPerformance(
 export function overloadInsights(
   sessions: WorkoutSession[],
   weeklyGoal: number,
+  unit: UnitPreference = 'kg',
 ): string[] {
   const out: string[] = [];
 
   const mi = mostImproved(sessions);
   if (mi && mi.deltaWeight > 0) {
     out.push(
-      `Your ${mi.name} top set is up ${formatWeight(mi.deltaWeight)}kg (${Math.round(
+      `Your ${mi.name} top set is up ${formatWeight(mi.deltaWeight, unit)}${unit} (${Math.round(
         mi.deltaPct,
       )}%) since you started tracking it. 💪`,
     );

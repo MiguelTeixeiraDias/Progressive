@@ -18,7 +18,7 @@ import { PageWidth, PrimaryButton, WorkoutExerciseCard } from '../components';
 import { useResponsive } from '../hooks/useResponsive';
 import { TabScreenProps } from '../navigation/types';
 import { useStore } from '../store/useStore';
-import { MuscleGroup, TemplateExercise, WorkoutExercise, WorkoutTemplate } from '../types';
+import { MuscleGroup, TemplateExercise, WorkoutExercise, WorkoutSession, WorkoutTemplate } from '../types';
 import { colors, family, font, layout, radius, spacing } from '../theme';
 import { formatClock } from '../utils/format';
 import { lastPerformance, lastWorkout } from '../utils/stats';
@@ -62,6 +62,7 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
   const addTemplate = useStore((s) => s.addTemplate);
   const renameWorkout = useStore((s) => s.renameWorkout);
   const discardWorkout = useStore((s) => s.discardWorkout);
+  const replaceActiveWorkout = useStore((s) => s.replaceActiveWorkout);
   const finishWorkout = useStore((s) => s.finishWorkout);
   const addSet = useStore((s) => s.addSet);
   const updateSet = useStore((s) => s.updateSet);
@@ -136,6 +137,60 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
       Animated.timing(toastOpacity, { toValue: 0, duration: 320, useNativeDriver: true }),
     ]).start(({ finished }) => finished && setToast(null));
   };
+
+  // Interactive undo bar for destructive removals. It snapshots the whole active
+  // session before the delete, so tapping UNDO restores it exactly.
+  const [undo, setUndo] = useState<{ text: string; restore: WorkoutSession } | null>(null);
+  const undoOpacity = useRef(new Animated.Value(0)).current;
+  const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hideUndo = () => {
+    Animated.timing(undoOpacity, { toValue: 0, duration: 250, useNativeDriver: true }).start(
+      ({ finished }) => finished && setUndo(null),
+    );
+  };
+  const showUndo = (text: string, restore: WorkoutSession) => {
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    setUndo({ text, restore });
+    undoOpacity.setValue(0);
+    Animated.timing(undoOpacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+    undoTimer.current = setTimeout(hideUndo, 4500);
+  };
+  const doUndo = () => {
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    setUndo((u) => {
+      if (u) replaceActiveWorkout(u.restore);
+      return null;
+    });
+    undoOpacity.setValue(0);
+  };
+  useEffect(() => () => {
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+  }, []);
+
+  // Rest timer between sets. `restLeft` is seconds remaining (null = idle); the
+  // end time is tracked in a ref so the countdown stays accurate across ticks.
+  const [restLeft, setRestLeft] = useState<number | null>(null);
+  const restEndRef = useRef(0);
+  const restActive = restLeft !== null;
+  const startRest = (sec: number) => {
+    restEndRef.current = Date.now() + sec * 1000;
+    setRestLeft(sec);
+  };
+  const stopRest = () => setRestLeft(null);
+  useEffect(() => {
+    if (!restActive) return;
+    const id = setInterval(() => {
+      const left = Math.max(0, Math.round((restEndRef.current - Date.now()) / 1000));
+      setRestLeft(left);
+      if (left <= 0) {
+        clearInterval(id);
+        showToast('REST DONE — NEXT SET', colors.primary);
+        setTimeout(() => setRestLeft(null), 1200);
+      }
+    }, 250);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restActive]);
 
   // ── Pre-start screen ────────────────────────────────────────────────────
   if (!active) {
@@ -332,7 +387,23 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
     const we = active.exercises.find((e) => e.id === weId);
     const wasComplete = !!we && we.sets.length > 0 && we.sets.every((s) => s.completed);
     completeExercise(weId);
-    if (we && !wasComplete) showToast(`LOGGED · ${we.name.toUpperCase()}`, colors.primary);
+    if (we && !wasComplete) {
+      showToast(`LOGGED · ${we.name.toUpperCase()}`, colors.primary);
+      if (we.muscleGroup !== 'Cardio') startRest(90); // auto rest after a logged lift
+    }
+  };
+
+  const handleRemoveExercise = (weId: string) => {
+    const snapshot = active; // full session before the delete, for undo
+    const we = active.exercises.find((e) => e.id === weId);
+    removeWorkoutExercise(weId);
+    showUndo(`REMOVED · ${(we?.name ?? 'EXERCISE').toUpperCase()}`, snapshot);
+  };
+
+  const handleRemoveSet = (weId: string, setId: string) => {
+    const snapshot = active;
+    removeSet(weId, setId);
+    showUndo('SET REMOVED', snapshot);
   };
 
   const saveAsTemplate = () => {
@@ -374,12 +445,12 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
       previousSets={previousMap[we.exerciseId]}
       supersetLabel={label}
       onAddSet={() => addSet(we.id)}
-      onRemove={() => removeWorkoutExercise(we.id)}
+      onRemove={() => handleRemoveExercise(we.id)}
       onComplete={() => onCompleteExercise(we.id)}
       onNotesChange={(notes) => setExerciseNotes(we.id, notes)}
       onUpdateSet={(setId, patch) => updateSet(we.id, setId, patch)}
       onUpdateDuration={(setId, durationSec) => updateSetDuration(we.id, setId, durationSec)}
-      onRemoveSet={(setId) => removeSet(we.id, setId)}
+      onRemoveSet={(setId) => handleRemoveSet(we.id, setId)}
       onToggleDropSet={(setId) => toggleDropSet(we.id, setId)}
       onAddDropStage={(setId) => addDropStage(we.id, setId)}
       onUpdateDropStage={(setId, dropId, patch) => updateDropStage(we.id, setId, dropId, patch)}
@@ -462,6 +533,50 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
           <StatPill icon="checkmark-done-outline" value={`${doneSets}/${totalSets} SETS`} accent={colors.primary} />
         </View>
 
+        <View style={styles.restRow}>
+          {!restActive ? (
+            <>
+              <Text style={styles.restLabel}>REST</Text>
+              {[60, 90, 120].map((s) => (
+                <Pressable
+                  key={s}
+                  onPress={() => startRest(s)}
+                  style={({ pressed }) => [styles.restChip, pressed && styles.restChipPressed]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Start ${s} second rest timer`}
+                >
+                  <Ionicons name="timer-outline" size={13} color={colors.primary} />
+                  <Text style={styles.restChipText}>{s}s</Text>
+                </Pressable>
+              ))}
+            </>
+          ) : (
+            <View style={styles.restActive}>
+              <Ionicons name="timer" size={16} color={colors.bg} />
+              <Text style={styles.restCountdown}>{formatClock(restLeft ?? 0)}</Text>
+              <View style={styles.restSpacer} />
+              <Pressable
+                onPress={() => startRest((restLeft ?? 0) + 30)}
+                hitSlop={6}
+                style={({ pressed }) => [styles.restCtl, pressed && styles.restChipPressed]}
+                accessibilityRole="button"
+                accessibilityLabel="Add 30 seconds to rest"
+              >
+                <Text style={styles.restCtlText}>+30s</Text>
+              </Pressable>
+              <Pressable
+                onPress={stopRest}
+                hitSlop={6}
+                style={({ pressed }) => [styles.restCtl, pressed && styles.restChipPressed]}
+                accessibilityRole="button"
+                accessibilityLabel="Skip rest"
+              >
+                <Text style={styles.restCtlText}>SKIP</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
+
         {toast ? (
           <Animated.View
             pointerEvents="none"
@@ -495,6 +610,23 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
             </>
           )}
         </ScrollView>
+
+        {undo ? (
+          <Animated.View style={[styles.undoBar, { opacity: undoOpacity }]}>
+            <Ionicons name="trash-outline" size={15} color={colors.textDim} />
+            <Text style={styles.undoText} numberOfLines={1}>{undo.text}</Text>
+            <Pressable
+              onPress={doUndo}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Undo removal"
+              style={({ pressed }) => [styles.undoBtn, pressed && styles.undoBtnPressed]}
+            >
+              <Ionicons name="arrow-undo" size={14} color={colors.bg} />
+              <Text style={styles.undoBtnText}>UNDO</Text>
+            </Pressable>
+          </Animated.View>
+        ) : null}
 
         {linkMode ? (
           <View style={styles.linkActionBar}>
@@ -659,6 +791,42 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   pillText: { fontFamily: family.semibold, fontSize: font.label, letterSpacing: 0.4 },
+
+  // Rest timer
+  restRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
+  restLabel: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 1.4, marginRight: 2 },
+  restChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: colors.primaryDim,
+  },
+  restChipPressed: { opacity: 0.75 },
+  restChipText: { color: colors.primary, fontFamily: family.semibold, fontSize: font.tiny, letterSpacing: 0.6 },
+  restActive: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 7,
+    borderRadius: radius.sm,
+    backgroundColor: colors.primary,
+  },
+  restCountdown: { color: colors.bg, fontFamily: family.display, fontSize: 20, includeFontPadding: false, letterSpacing: 0.5 },
+  restSpacer: { flex: 1 },
+  restCtl: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 4,
+    borderRadius: radius.xs,
+    backgroundColor: colors.bg,
+  },
+  restCtlText: { color: colors.text, fontFamily: family.bold, fontSize: font.tiny, letterSpacing: 0.8 },
   toast: {
     position: 'absolute',
     top: 104,
@@ -715,4 +883,31 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     backgroundColor: colors.bgElevated,
   },
+
+  // Undo bar
+  undoBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.card,
+  },
+  undoText: { flex: 1, color: colors.textDim, fontFamily: family.semibold, fontSize: font.tiny, letterSpacing: 0.8 },
+  undoBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: radius.xs,
+    backgroundColor: colors.primary,
+  },
+  undoBtnPressed: { opacity: 0.85 },
+  undoBtnText: { color: colors.bg, fontFamily: family.bold, fontSize: font.tiny, letterSpacing: 1 },
 });

@@ -10,7 +10,7 @@ import { useStore } from '../store/useStore';
 import { Exercise } from '../types';
 import { colors, family, font, layout, radius, spacing } from '../theme';
 import { relativeDay } from '../utils/date';
-import { formatClock } from '../utils/format';
+import { formatClock, formatWeight } from '../utils/format';
 import { lastPerformance } from '../utils/stats';
 
 export default function ExercisesScreen({ navigation }: TabScreenProps<'Exercises'>) {
@@ -20,6 +20,7 @@ export default function ExercisesScreen({ navigation }: TabScreenProps<'Exercise
   const startWorkout = useStore((s) => s.startWorkout);
   const addExerciseToWorkout = useStore((s) => s.addExerciseToWorkout);
   const deleteExercise = useStore((s) => s.deleteExercise);
+  const unit = useStore((s) => s.settings.unit);
 
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<MuscleFilter>('All');
@@ -45,7 +46,7 @@ export default function ExercisesScreen({ navigation }: TabScreenProps<'Exercise
       return `${formatClock(top.durationSec ?? 0)} · ${relativeDay(prev.date)}`;
     }
     const top = prev.sets.reduce((a, b) => (b.weight > a.weight ? b : a));
-    return `${top.weight}kg × ${top.reps} · ${relativeDay(prev.date)}`;
+    return `${formatWeight(top.weight, unit)}${unit} × ${top.reps} · ${relativeDay(prev.date)}`;
   };
 
   const isSelected = (id: string) => selected.includes(id);

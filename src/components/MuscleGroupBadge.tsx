@@ -10,22 +10,32 @@ interface MuscleGroupBadgeProps {
   group: MuscleGroup;
   size?: 'sm' | 'md';
   active?: boolean;
+  /** Pre-resolved accent. Pass this on badge-heavy lists so the badge doesn't
+   *  each subscribe to the store; falls back to the store when omitted. */
+  color?: string;
   style?: StyleProp<ViewStyle>;
 }
 
 /** Minimal, text-first chip carrying the muscle group's accent color (a small
  *  dot when idle, a full tint when active). Colors are user-configurable in
- *  Settings and default to the app's acid-lime. */
+ *  Settings and default to the app's acid-lime. The group name is always shown
+ *  as text, so the color is a reinforcement — never the only signal. */
 export default function MuscleGroupBadge({
   group,
   size = 'md',
   active = false,
+  color,
   style,
 }: MuscleGroupBadgeProps) {
   const small = size === 'sm';
-  const accent = useStore((s) => muscleColor(group, s.settings.muscleColors));
+  // A constant `color` selector never changes, so no per-badge re-render; when
+  // omitted we resolve the group's color from Settings.
+  const accent = useStore((s) => color ?? muscleColor(group, s.settings.muscleColors));
   return (
     <View
+      accessible
+      accessibilityRole="text"
+      accessibilityLabel={`${group} muscle group`}
       style={[
         styles.badge,
         {
@@ -37,7 +47,10 @@ export default function MuscleGroupBadge({
         style,
       ]}
     >
-      <View style={[styles.dot, { backgroundColor: accent, width: small ? 6 : 7, height: small ? 6 : 7 }]} />
+      <View
+        importantForAccessibility="no"
+        style={[styles.dot, { backgroundColor: accent, width: small ? 6 : 7, height: small ? 6 : 7 }]}
+      />
       <Text
         style={[
           styles.label,

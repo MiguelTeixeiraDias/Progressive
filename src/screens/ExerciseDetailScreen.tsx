@@ -7,7 +7,7 @@ import { EmptyState, KPICard, MuscleGroupBadge, PageWidth, PrimaryButton } from 
 import { RootStackScreenProps } from '../navigation/types';
 import { useStore } from '../store/useStore';
 import { colors, family, font, layout, radius, spacing } from '../theme';
-import { formatWeight, signedPct } from '../utils/format';
+import { formatWeight, kgToUnit, signedPct } from '../utils/format';
 import {
   actualOneRepMax,
   computePRs,
@@ -23,6 +23,7 @@ export default function ExerciseDetailScreen({ route, navigation }: RootStackScr
   const activeWorkout = useStore((s) => s.activeWorkout);
   const addExerciseToWorkout = useStore((s) => s.addExerciseToWorkout);
   const deleteExercise = useStore((s) => s.deleteExercise);
+  const wUnit = useStore((s) => s.settings.unit);
 
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -98,15 +99,15 @@ export default function ExerciseDetailScreen({ route, navigation }: RootStackScr
               <KPICard
                 style={styles.tile}
                 label="Best weight"
-                value={m.pr.maxWeight}
-                unit="kg"
+                value={kgToUnit(m.pr.maxWeight, wUnit)}
+                unit={wUnit}
                 accent={colors.primary}
                 countUp
                 format={formatWeight}
                 caption={`${m.pr.repsAtMaxWeight} REPS`}
               />
               {m.actual1RM !== null ? (
-                <KPICard style={styles.tile} label="Actual 1RM" value={m.actual1RM} unit="kg" countUp format={formatWeight} caption="1 REP" />
+                <KPICard style={styles.tile} label="Actual 1RM" value={kgToUnit(m.actual1RM, wUnit)} unit={wUnit} countUp format={formatWeight} caption="1 REP" />
               ) : (
                 <KPICard style={styles.tile} label="Actual 1RM" value="—" caption="NO 1RM RECORDED" />
               )}
@@ -142,9 +143,9 @@ export default function ExerciseDetailScreen({ route, navigation }: RootStackScr
                     <View key={t.time} style={[styles.tlItem, newest && styles.tlItemActive]}>
                       <Text style={styles.tlDate}>{t.label.toUpperCase()}</Text>
                       <Text style={[styles.tlWeight, newest && { color: colors.primary }]}>
-                        {formatWeight(t.topWeight)}
+                        {formatWeight(t.topWeight, wUnit)}
                       </Text>
-                      <Text style={styles.tlReps}>kg × {t.reps}</Text>
+                      <Text style={styles.tlReps}>{wUnit} × {t.reps}</Text>
                     </View>
                   );
                 })}

@@ -7,7 +7,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -24,6 +23,7 @@ import {
   ProgressBar,
   SearchInput,
   SectionHeader,
+  WeightLogger,
 } from '../components';
 import { useResponsive } from '../hooks/useResponsive';
 import { TabScreenProps } from '../navigation/types';
@@ -32,7 +32,7 @@ import { Exercise } from '../types';
 import { colors, family, font, layout, radius, spacing } from '../theme';
 import { withAlpha } from '../utils/color';
 import { repGuidance } from '../utils/coaching';
-import { formatWeight, signedPct } from '../utils/format';
+import { formatWeight, kgToUnit, signedPct } from '../utils/format';
 import {
   computePRs,
   currentStreak,
@@ -70,10 +70,10 @@ export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'
       prs: personalRecordList(workouts),
       prMap: computePRs(workouts),
       muscleFreq: muscleFrequency(workouts, 4),
-      insights: overloadInsights(workouts, settings.weeklyGoal),
+      insights: overloadInsights(workouts, settings.weeklyGoal, settings.unit),
       weeks: rollingWeekConsistency(workouts, settings.weeklyGoal, 4),
     };
-  }, [workouts, settings.weeklyGoal]);
+  }, [workouts, settings.weeklyGoal, settings.unit]);
 
   const scoreColor = data.score >= 60 ? colors.primary : colors.text;
   const paceColor = data.pace === null ? colors.text : data.pace >= 0 ? colors.primary : colors.text;
@@ -90,6 +90,7 @@ export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'
   const insights = goalLine ? [goalLine, ...data.insights] : data.insights;
 
   // Bodyweight trend (last 30 weigh-ins, oldest first).
+  const wUnit = settings.unit; // raw unit for weight conversion (kg canonical)
   const unit = settings.unit.toUpperCase();
   const bwSeries = bodyWeights.slice(-30);
   const bwValues = bwSeries.map((e) => e.weight);
@@ -98,13 +99,6 @@ export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'
   const bwStart = bodyWeights.length ? bodyWeights[0].weight : null;
   const bwDelta = bwCurrent !== null && bwStart !== null ? bwCurrent - bwStart : null;
   const targetWeight = settings.goals.targetBodyWeight;
-  const [weightInput, setWeightInput] = useState('');
-  const onLogWeight = () => {
-    const n = parseFloat(weightInput.replace(',', '.'));
-    if (!Number.isFinite(n) || n <= 0) return;
-    logBodyWeight(n);
-    setWeightInput('');
-  };
 
   // Key lifts (editable from the heading) — 3–6 chosen exercises.
   const featured = settings.featuredExercises.slice(0, MAX_KEY_LIFTS);
@@ -159,7 +153,7 @@ export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'
   const kpiWorkouts = <KPICard style={styles.tile} label="Workouts" value={data.totalWorkouts} countUp />;
   const kpiStreak = <KPICard style={styles.tile} label="Current streak" value={data.streak} countUp caption="DAYS" />;
   const kpiPr = data.latestPr
-    ? <KPICard style={styles.tile} label="Latest record" value={data.latestPr.maxWeight} unit="kg" accent={colors.primary} countUp format={formatWeight} caption={data.latestPr.exerciseName.toUpperCase()} />
+    ? <KPICard style={styles.tile} label="Latest record" value={kgToUnit(data.latestPr.maxWeight, wUnit)} unit={wUnit} accent={colors.primary} countUp format={formatWeight} caption={data.latestPr.exerciseName.toUpperCase()} />
     : <KPICard style={styles.tile} label="Latest record" value="—" caption="NO RECORDS YET" />;
 
   const tilesEl = isDesktop ? (
@@ -195,8 +189,8 @@ export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'
                   {(ex?.name ?? 'Unknown').toUpperCase()}
                 </Text>
                 <View style={styles.keyValueRow}>
-                  <Text style={styles.keyValue}>{has ? formatWeight(recd.maxWeight) : '—'}</Text>
-                  {has ? <Text style={styles.keyUnit}>kg</Text> : null}
+                  <Text style={styles.keyValue}>{has ? formatWeight(recd.maxWeight, wUnit) : '—'}</Text>
+                  {has ? <Text style={styles.keyUnit}>{wUnit}</Text> : null}
                 </View>
                 <Text style={styles.keySub} numberOfLines={1}>
                   {has ? `${recd.repsAtMaxWeight} REPS` : 'NO PR YET'}
@@ -292,32 +286,14 @@ export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'
     </View>
   );
 
-  // Inline weigh-in logger — shared by the empty state and the populated card.
+  // Inline weigh-in logger — shared with the Home BODY card.
   const weightLogger = (
-    <View style={styles.bwLogRow}>
-      <TextInput
-        value={weightInput}
-        onChangeText={setWeightInput}
-        placeholder={bwCurrent !== null ? formatWeight(bwCurrent) : `Weight in ${unit.toLowerCase()}`}
-        placeholderTextColor={colors.textFaint}
-        keyboardType="decimal-pad"
-        returnKeyType="done"
-        onSubmitEditing={onLogWeight}
-        style={styles.bwInput}
-      />
-      <Pressable
-        onPress={onLogWeight}
-        disabled={!weightInput.trim()}
-        style={({ pressed }) => [
-          styles.bwLogBtn,
-          !weightInput.trim() && styles.bwLogBtnDisabled,
-          pressed && styles.bwLogBtnPressed,
-        ]}
-      >
-        <Ionicons name="add" size={18} color={colors.bg} />
-        <Text style={styles.bwLogBtnText}>LOG</Text>
-      </Pressable>
-    </View>
+    <WeightLogger
+      current={bwCurrent}
+      unit={unit}
+      actionLabel={bwCurrent !== null ? 'UPDATE' : 'LOG'}
+      onLog={logBodyWeight}
+    />
   );
 
   // Bodyweight trend
@@ -386,8 +362,8 @@ export default function ProgressScreen({ navigation }: TabScreenProps<'Progress'
           <Pressable key={rec.exerciseId} onPress={() => navigation.navigate('ExerciseDetail', { exerciseId: rec.exerciseId })}>
             <PersonalBestBadge
               title={rec.exerciseName}
-              value={`${formatWeight(rec.maxWeight)} kg`}
-              caption={`${rec.repsAtMaxWeight} reps · e1RM ${formatWeight(rec.estimatedOneRepMax)} kg`}
+              value={`${formatWeight(rec.maxWeight, wUnit)} ${wUnit}`}
+              caption={`${rec.repsAtMaxWeight} reps · e1RM ${formatWeight(rec.estimatedOneRepMax, wUnit)} ${wUnit}`}
             />
           </Pressable>
         ))}
@@ -565,31 +541,6 @@ const styles = StyleSheet.create({
   bwUnit: { color: colors.textDim, fontFamily: family.medium, fontSize: font.label },
   bwStatLabel: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 1, marginTop: 2 },
   bwChartWrap: { marginTop: spacing.xs },
-  bwLogRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg },
-  bwInput: {
-    flex: 1,
-    backgroundColor: colors.card2,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.lg,
-    height: 46,
-    color: colors.text,
-    fontFamily: family.medium,
-    fontSize: font.body,
-  },
-  bwLogBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    paddingHorizontal: spacing.lg,
-    height: 46,
-    borderRadius: radius.sm,
-    backgroundColor: colors.primary,
-  },
-  bwLogBtnDisabled: { opacity: 0.4 },
-  bwLogBtnPressed: { opacity: 0.85 },
-  bwLogBtnText: { color: colors.bg, fontFamily: family.bold, fontSize: font.label, letterSpacing: 0.8 },
 
   // Personal records
   prList: { gap: spacing.sm },
