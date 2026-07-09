@@ -352,6 +352,48 @@ export function dayAvgPctIncrease(sessions: WorkoutSession[], key: string): numb
   return averageOrNull(pcts);
 }
 
+export interface ExercisePct {
+  exerciseId: string;
+  name: string;
+  pct: number | null; // null = no earlier session to compare against
+}
+
+/**
+ * Per-exercise volume change for a given local day, comparing each exercise's
+ * volume that day to the most recent earlier day it was trained. Names come from
+ * that day's sessions. Sorted biggest gain first; uncompared exercises last.
+ */
+export function dayExerciseIncreases(sessions: WorkoutSession[], key: string): ExercisePct[] {
+  const timeline = dayVolumeTimeline(sessions);
+  const idx = timeline.findIndex((d) => d.key === key);
+  if (idx < 0) return [];
+
+  const names = new Map<string, string>();
+  for (const s of completed(sessions)) {
+    if (dayKey(s.startedAt) !== key) continue;
+    for (const we of s.exercises) if (!names.has(we.exerciseId)) names.set(we.exerciseId, we.name);
+  }
+
+  const out: ExercisePct[] = [];
+  for (const [exId, vol] of timeline[idx].vols) {
+    let pct: number | null = null;
+    for (let j = idx - 1; j >= 0; j--) {
+      const prev = timeline[j].vols.get(exId);
+      if (prev && prev > 0) {
+        pct = ((vol - prev) / prev) * 100;
+        break;
+      }
+    }
+    out.push({ exerciseId: exId, name: names.get(exId) ?? 'Exercise', pct });
+  }
+  return out.sort((a, b) => (b.pct ?? -Infinity) - (a.pct ?? -Infinity));
+}
+
+/** Local workout days in the current week, most recent first. */
+export function workoutDaysThisWeek(sessions: WorkoutSession[]): string[] {
+  return [...new Set(completed(sessions).filter((s) => isThisWeek(s.startedAt)).map((s) => dayKey(s.startedAt)))].sort().reverse();
+}
+
 /**
  * Average per-exercise percentage increase for a single session, comparing each
  * exercise to the previous session it appeared in. Powers the Last Session card.
