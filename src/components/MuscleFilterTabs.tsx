@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, ScrollView, StyleProp, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { Pressable, StyleProp, StyleSheet, Text, View, ViewStyle } from 'react-native';
 
 import { MUSCLE_GROUPS, MuscleGroup } from '../types';
 import { colors, family, font, radius, spacing } from '../theme';
@@ -15,54 +15,54 @@ interface MuscleFilterTabsProps {
 }
 
 /**
- * Horizontally scrollable muscle-group filter. Chips keep an identical box in
- * both states — same height, padding and border width — so selecting one only
- * swaps colours and never shifts the layout. Shared by the Exercises page, the
- * in-workout Add Exercise modal and the Template editor.
+ * Wrapping muscle-group filter — every group is visible at once, no horizontal
+ * scrolling. Chips keep an identical box in both states — same height, padding
+ * and border width — so selecting one only swaps colours and never shifts the
+ * layout. Shared by the Exercises page, the in-workout Add Exercise modal and
+ * the Template editor.
  */
 export default function MuscleFilterTabs({ value, onChange, style }: MuscleFilterTabsProps) {
   return (
-    <View style={style}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={styles.row}
-      >
-        {MUSCLE_FILTERS.map((f) => {
-          const selected = value === f;
-          return (
-            <Pressable
-              key={f}
-              onPress={() => onChange(f)}
-              style={[
-                styles.chip,
-                {
-                  backgroundColor: selected ? colors.primaryDim : 'transparent',
-                  borderColor: selected ? colors.primary : colors.borderStrong,
-                },
-              ]}
+    <View style={[styles.row, style]}>
+      {MUSCLE_FILTERS.map((f) => {
+        const selected = value === f;
+        return (
+          <Pressable
+            key={f}
+            onPress={() => onChange(f)}
+            style={[
+              styles.chip,
+              {
+                backgroundColor: selected ? colors.primaryDim : 'transparent',
+                borderColor: selected ? colors.primary : colors.borderStrong,
+              },
+            ]}
+          >
+            <Text
+              style={[styles.chipText, { color: selected ? colors.primary : colors.textDim }]}
+              numberOfLines={1}
             >
-              <Text
-                style={[styles.chipText, { color: selected ? colors.primary : colors.textDim }]}
-                numberOfLines={1}
-              >
-                {f.toUpperCase()}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+              {f.toUpperCase()}
+            </Text>
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, gap: spacing.sm },
+  row: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    gap: spacing.sm,
+  },
   chip: {
     height: 36,
-    minWidth: 56,
-    paddingHorizontal: spacing.lg,
+    minWidth: 52,
+    paddingHorizontal: spacing.md,
     borderRadius: radius.sm,
     borderWidth: 1,
     alignItems: 'center',

@@ -2,7 +2,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React from 'react';
 
 import { MuscleGroup } from '../types';
-import { colors } from '../theme';
+import { useStore } from '../store/useStore';
+import { muscleColor } from '../utils/color';
 
 type IconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 
@@ -29,10 +30,9 @@ interface MuscleGroupIconProps {
   color?: string;
 }
 
-export default function MuscleGroupIcon({
-  group,
-  size = 22,
-  color = colors.primary,
-}: MuscleGroupIconProps) {
-  return <MaterialCommunityIcons name={MUSCLE_ICONS[group]} size={size} color={color} />;
+export default function MuscleGroupIcon({ group, size = 22, color }: MuscleGroupIconProps) {
+  // Resolve the group's user-configured colour (falls back to the acid-lime
+  // accent) so the icon matches the badge dot; an explicit `color` prop wins.
+  const accent = useStore((s) => color ?? muscleColor(group, s.settings.muscleColors));
+  return <MaterialCommunityIcons name={MUSCLE_ICONS[group]} size={size} color={accent} />;
 }

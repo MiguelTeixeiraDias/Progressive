@@ -37,12 +37,14 @@ import {
   currentWeekProgress,
   dailyPctIncreaseThisWeek,
   dayAvgPctIncrease,
+  dayExerciseIncreases,
   hasComparisonData,
   lastWorkout,
   mostImproved,
   muscleGridThisWeek,
   nextTarget,
   weekAvgPctIncrease,
+  workoutDaysThisWeek,
 } from '../utils/stats';
 
 const GREETING: Record<ReturnType<typeof timeOfDay>, string> = {
@@ -64,6 +66,20 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
   const updateSettings = useStore((s) => s.updateSettings);
 
   const [streakOpen, setStreakOpen] = useState(false);
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+
+  // Per-day exercise breakdown for the "Increase This Week" card.
+  const weekDays = useMemo(() => workoutDaysThisWeek(workouts), [workouts]);
+  const activeDay = selectedDay && weekDays.includes(selectedDay) ? selectedDay : weekDays[0] ?? null;
+  const dayExercises = useMemo(
+    () => (activeDay ? dayExerciseIncreases(workouts, activeDay) : []),
+    [workouts, activeDay],
+  );
+  const dayLabel = (key: string) => {
+    if (key === dayKey(Date.now())) return 'TODAY';
+    const [y, mo, d] = key.split('-').map(Number);
+    return new Date(y, mo - 1, d).toLocaleDateString(undefined, { weekday: 'short' }).toUpperCase();
+  };
   const { isDesktop } = useResponsive();
 
   const m = useMemo(() => {
@@ -232,6 +248,38 @@ export default function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
               : 'Average per-exercise gain vs your previous sessions.'}
           </Text>
           <PercentChart data={m.daily} height={104} style={styles.featureChart} />
+
+          {weekDays.length > 0 ? (
+            <View style={styles.dayBreak}>
+              <View style={styles.dayChips}>
+                {weekDays.map((d) => {
+                  const sel = d === activeDay;
+                  return (
+                    <Pressable key={d} onPress={() => setSelectedDay(d)} style={[styles.dayChip, sel && styles.dayChipOn]}>
+                      <Text style={[styles.dayChipText, sel && styles.dayChipTextOn]}>{dayLabel(d)}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              {dayExercises.length > 0 ? (
+                dayExercises.map((e) => (
+                  <View key={e.exerciseId} style={styles.dayExRow}>
+                    <Text style={styles.dayExName} numberOfLines={1}>{e.name}</Text>
+                    <Text
+                      style={[
+                        styles.dayExPct,
+                        { color: e.pct === null ? colors.textFaint : e.pct >= 0 ? colors.primary : colors.text },
+                      ]}
+                    >
+                      {e.pct === null ? 'NEW' : signedPct(e.pct)}
+                    </Text>
+                  </View>
+                ))
+              ) : (
+                <Text style={styles.featureCaption}>No comparable lifts that day.</Text>
+              )}
+            </View>
+          ) : null}
         </>
       ) : (
         <View style={styles.featureEmpty}>
@@ -584,6 +632,16 @@ const styles = StyleSheet.create({
   featureUnit: { color: colors.textDim, fontFamily: family.medium, fontSize: font.label, marginLeft: 8, marginBottom: 9 },
   featureCaption: { color: colors.textFaint, fontFamily: family.body, fontSize: font.small, marginTop: spacing.sm },
   featureChart: { marginTop: spacing.lg },
+  // Per-day exercise breakdown
+  dayBreak: { marginTop: spacing.lg, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.md, gap: spacing.sm },
+  dayChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.xs },
+  dayChip: { paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.borderStrong },
+  dayChipOn: { borderColor: colors.primary, backgroundColor: colors.primaryDim },
+  dayChipText: { color: colors.textDim, fontFamily: family.semibold, fontSize: font.tiny, letterSpacing: 0.8 },
+  dayChipTextOn: { color: colors.primary },
+  dayExRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md, paddingVertical: 5 },
+  dayExName: { flex: 1, color: colors.text, fontFamily: family.medium, fontSize: font.small },
+  dayExPct: { fontFamily: family.semibold, fontSize: font.small, letterSpacing: 0.4 },
   featureEmpty: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.md },
   featureEmptyText: { color: colors.textDim, fontFamily: family.body, fontSize: font.small, lineHeight: 19, flex: 1 },
 
