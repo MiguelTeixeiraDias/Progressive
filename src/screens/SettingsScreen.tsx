@@ -134,6 +134,53 @@ function OptionRow({ label, selected, onPress }: { label: string; selected: bool
 }
 
 /**
+ * A muscle group's colour picker: a collapsed row showing the group name and its
+ * current colour, which expands to the swatch options — so the settings screen
+ * isn't a wall of swatches for every category at once.
+ */
+function MuscleColorRow({
+  group,
+  value,
+  onSelect,
+}: {
+  group: MuscleGroup;
+  value: string;
+  onSelect: (color: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <View style={styles.colorRow}>
+      <Pressable style={styles.colorRowHead} onPress={() => setOpen((o) => !o)}>
+        <Text style={styles.colorGroupName}>{group.toUpperCase()}</Text>
+        <View style={styles.colorRowRight}>
+          <View style={[styles.swatchCurrent, { backgroundColor: value }]} />
+          <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color={colors.textDim} />
+        </View>
+      </Pressable>
+      {open ? (
+        <View style={styles.swatches}>
+          {MUSCLE_COLOR_OPTIONS.map((c) => {
+            const sel = value.toLowerCase() === c.toLowerCase();
+            return (
+              <Pressable
+                key={c}
+                onPress={() => {
+                  onSelect(c);
+                  setOpen(false);
+                }}
+                style={[styles.swatch, { backgroundColor: c }, sel && styles.swatchSelected]}
+              >
+                {sel ? <Ionicons name="checkmark" size={13} color={colors.bg} /> : null}
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/**
  * Flat, editable mirror of the settings this screen exposes. Numeric inputs are
  * held as raw strings so the text fields behave naturally while typing; they're
  * parsed back to numbers only on save.
@@ -406,40 +453,27 @@ export default function SettingsScreen({ navigation }: TabScreenProps<'Settings'
           </View>
   );
 
-  {/* Muscle group colors — a per-group accent used on badges across the app. */}
+  {/* Muscle group colors — a per-group accent used on badges/icons across the
+      app. Each group is a collapsed row that expands to a colour dropdown. */}
   const muscleColorsSection = (
           <View style={styles.section}>
-            <SectionHeader title="Muscle Group Colors" subtitle="Tap a swatch · lime is the default" />
+            <SectionHeader title="Muscle Group Colors" subtitle="Tap a group to pick its colour · lime is the default" />
             <View style={styles.card}>
-              {MUSCLE_GROUPS.map((group) => {
-                const current = draft.muscleColors[group] ?? MUSCLE_COLOR_OPTIONS[0];
-                return (
-                  <View key={group} style={styles.colorRow}>
-                    <Text style={styles.colorGroupName}>{group.toUpperCase()}</Text>
-                    <View style={styles.swatches}>
-                      {MUSCLE_COLOR_OPTIONS.map((c) => {
-                        const sel = current.toLowerCase() === c.toLowerCase();
-                        const isDefault = c === MUSCLE_COLOR_OPTIONS[0];
-                        return (
-                          <Pressable
-                            key={c}
-                            onPress={() =>
-                              patch({
-                                muscleColors: isDefault
-                                  ? omitKey(draft.muscleColors, group)
-                                  : { ...draft.muscleColors, [group]: c },
-                              })
-                            }
-                            style={[styles.swatch, { backgroundColor: c }, sel && styles.swatchSelected]}
-                          >
-                            {sel ? <Ionicons name="checkmark" size={13} color={colors.bg} /> : null}
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                  </View>
-                );
-              })}
+              {MUSCLE_GROUPS.map((group) => (
+                <MuscleColorRow
+                  key={group}
+                  group={group}
+                  value={draft.muscleColors[group] ?? MUSCLE_COLOR_OPTIONS[0]}
+                  onSelect={(c) =>
+                    patch({
+                      muscleColors:
+                        c === MUSCLE_COLOR_OPTIONS[0]
+                          ? omitKey(draft.muscleColors, group)
+                          : { ...draft.muscleColors, [group]: c },
+                    })
+                  }
+                />
+              ))}
             </View>
           </View>
   );
@@ -642,8 +676,11 @@ const styles = StyleSheet.create({
   counterValue: { color: colors.text, fontFamily: family.display, fontSize: 30, lineHeight: 35, minWidth: 32, textAlign: 'center', includeFontPadding: false },
   counterUnit: { color: colors.textDim, fontFamily: family.body, fontSize: font.small, marginLeft: spacing.sm },
   // Muscle group colors
-  colorRow: { gap: spacing.sm },
-  colorGroupName: { color: colors.text, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 1 },
+  colorRow: { gap: spacing.md, paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
+  colorRowHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  colorRowRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  swatchCurrent: { width: 22, height: 22, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border },
+  colorGroupName: { color: colors.text, fontFamily: family.medium, fontSize: font.body, letterSpacing: 0.5 },
   swatches: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   swatch: {
     width: 30,
