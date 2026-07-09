@@ -5,6 +5,11 @@ jobs:
     type: build # This job type creates a production build for Android
     params:
       platform: android
+
+  on:
+  push:
+    branches: [main]
+
   # iOS production builds require an Apple Developer account ($99/yr) to issue
   # the distribution certificate + provisioning profile. Re-enable when available.
   # build_ios:
