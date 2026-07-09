@@ -151,26 +151,43 @@ export async function deleteTemplate(templateId: string): Promise<void> {
   if (error) throw error;
 }
 
+/** PostgREST `in.(...)` filter value for a list of text ids. */
+function idList(ids: string[]): string {
+  return `(${ids.map((id) => `"${id}"`).join(',')})`;
+}
+
 export async function saveWorkout(userId: string, workout: WorkoutSession): Promise<void> {
   const { error: wErr } = await supabase.from('workouts').upsert(workoutToRow(userId, workout));
   if (wErr) throw wErr;
 
-  // Replace children wholesale (cascade clears sets when an exercise is removed).
-  const { error: delErr } = await supabase
-    .from('workout_exercises')
-    .delete()
-    .eq('workout_id', workout.id);
-  if (delErr) throw delErr;
-
+  // Upsert children first and prune stale rows last, so a failure part-way
+  // through never leaves the workout empty on the server. (The previous
+  // delete-then-insert order did: a schema or RLS error on the insert wiped
+  // the server copy, which then clobbered local history on the next merge.)
   const exRows = workoutExerciseRows(userId, workout);
   if (exRows.length) {
-    const { error: exErr } = await supabase.from('workout_exercises').insert(exRows);
+    const { error: exErr } = await supabase.from('workout_exercises').upsert(exRows);
     if (exErr) throw exErr;
   }
   const sRows = setRows(userId, workout);
   if (sRows.length) {
-    const { error: sErr } = await supabase.from('sets').insert(sRows);
+    const { error: sErr } = await supabase.from('sets').upsert(sRows);
     if (sErr) throw sErr;
+  }
+
+  // Prune exercises removed since the last sync (cascade clears their sets),
+  // then sets removed from the exercises that remain.
+  const exIds = exRows.map((r) => r.id);
+  let pruneEx = supabase.from('workout_exercises').delete().eq('workout_id', workout.id);
+  if (exIds.length) pruneEx = pruneEx.not('id', 'in', idList(exIds));
+  const { error: pruneExErr } = await pruneEx;
+  if (pruneExErr) throw pruneExErr;
+
+  if (exIds.length) {
+    let pruneSets = supabase.from('sets').delete().in('workout_exercise_id', exIds);
+    if (sRows.length) pruneSets = pruneSets.not('id', 'in', idList(sRows.map((r) => r.id)));
+    const { error: pruneSetsErr } = await pruneSets;
+    if (pruneSetsErr) throw pruneSetsErr;
   }
 }
 

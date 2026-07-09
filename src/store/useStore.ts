@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { DEFAULT_EXERCISES } from '../data/exercises';
+import { mergeWorkoutHistories } from '../lib/merge';
 import { loadUserData } from '../lib/sync';
 import { drain as drainOutbox, enqueue } from '../lib/outbox';
 import {
@@ -231,14 +232,14 @@ export const useStore = create<StoreState>()(
 
         // Workouts and weigh-ins are append-only (never deleted in-app), so union
         // by id/date — server wins on conflict — to guarantee a session or weigh-in
-        // that failed to sync offline is never lost. Templates, custom exercises
-        // and settings stay server-authoritative so deletions are honoured.
-        const mergeWorkouts = () => {
-          const byId = new Map<string, WorkoutSession>();
-          for (const w of local.workouts) byId.set(w.id, w);
-          for (const w of data.workouts) byId.set(w.id, w); // server overrides
-          return [...byId.values()].sort((a, b) => b.startedAt - a.startedAt);
-        };
+        // that failed to sync offline is never lost. A server workout that came
+        // back empty (partial sync) loses to a non-empty local copy and is
+        // re-uploaded below. Templates, custom exercises and settings stay
+        // server-authoritative so deletions are honoured.
+        const { merged: workouts, needsResync } = mergeWorkoutHistories(
+          local.workouts,
+          data.workouts,
+        );
         const mergeBodyWeights = () => {
           const byDate = new Map<string, BodyWeightEntry>();
           for (const e of local.bodyWeights) byDate.set(e.date, e);
@@ -253,12 +254,16 @@ export const useStore = create<StoreState>()(
           exercises: [...data.customExercises, ...visibleDefaults(settings.hiddenExerciseIds)],
           // Merge unconditionally: sign-out clears local data (resetLocal), so any
           // restored local workouts/weigh-ins belong to the account signing in.
-          workouts: mergeWorkouts(),
+          workouts,
           templates: data.templates,
           settings,
           bodyWeights: mergeBodyWeights(),
           activeWorkout: local.userId === userId ? local.activeWorkout : null,
         });
+
+        // Heal the server: push back any workout whose server copy lost its
+        // exercises to a partial sync.
+        for (const w of needsResync) enqueue(userId, { kind: 'workout', payload: w });
       },
 
       resetLocal: () =>
