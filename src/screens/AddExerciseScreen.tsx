@@ -12,12 +12,13 @@ import { colors, family, font, layout, radius, spacing } from '../theme';
 export default function AddExerciseScreen({ navigation }: RootStackScreenProps<'AddExercise'>) {
   const addExercise = useStore((s) => s.addExercise);
   const [name, setName] = useState('');
-  const [group, setGroup] = useState<MuscleGroup>('Chest');
+  // No default group — the user must consciously pick a category.
+  const [group, setGroup] = useState<MuscleGroup | null>(null);
 
-  const canSave = name.trim().length > 0;
+  const canSave = name.trim().length > 0 && group !== null;
 
   const onSave = () => {
-    if (!canSave) return;
+    if (!canSave || !group) return;
     addExercise(name, group);
     navigation.goBack();
   };
@@ -45,7 +46,7 @@ export default function AddExerciseScreen({ navigation }: RootStackScreenProps<'
           onSubmitEditing={onSave}
         />
 
-        <Text style={[styles.label, { marginTop: spacing.xl }]}>MUSCLE GROUP</Text>
+        <Text style={[styles.label, { marginTop: spacing.xl }]}>MUSCLE GROUP · CHOOSE ONE</Text>
         <View style={styles.groups}>
           {MUSCLE_GROUPS.map((g) => {
             const selected = group === g;
