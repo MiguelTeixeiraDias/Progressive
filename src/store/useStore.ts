@@ -451,6 +451,7 @@ export const useStore = create<StoreState>()(
             sets,
           };
         });
+        session.templateId = templateId; // remember the source for template save/update
         set({ activeWorkout: session });
         return true;
       },

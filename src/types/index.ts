@@ -65,6 +65,8 @@ export interface WorkoutSession {
   exercises: WorkoutExercise[];
   totalVolume: number; // kg
   completed: boolean;
+  /** Source template this session was started from, if any. */
+  templateId?: string;
 }
 
 export interface PersonalRecord {

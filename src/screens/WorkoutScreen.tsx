@@ -61,6 +61,7 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
   const startWorkoutFromTemplate = useStore((s) => s.startWorkoutFromTemplate);
   const deleteTemplate = useStore((s) => s.deleteTemplate);
   const addTemplate = useStore((s) => s.addTemplate);
+  const updateTemplate = useStore((s) => s.updateTemplate);
   const renameWorkout = useStore((s) => s.renameWorkout);
   const discardWorkout = useStore((s) => s.discardWorkout);
   const replaceActiveWorkout = useStore((s) => s.replaceActiveWorkout);
@@ -103,6 +104,8 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
   const [confirmDeleteTpl, setConfirmDeleteTpl] = useState<WorkoutTemplate | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [confirmFinish, setConfirmFinish] = useState(false);
+  const [saveAsOpen, setSaveAsOpen] = useState(false);
+  const [saveAsName, setSaveAsName] = useState('');
   const [startChooser, setStartChooser] = useState(false);
 
   // Superset linking — select 2+ ungrouped exercises, then confirm.
@@ -386,6 +389,23 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
   const nameValid = active.name.trim().length > 0;
   // A workout can only be finished once every set is completed.
   const allSetsComplete = totalSets > 0 && doneSets === totalSets;
+
+  // Template sync: only offer update / save-as-new when this session came from a
+  // template AND its exercise list has been changed (an exercise added/removed).
+  const sourceTpl = active.templateId ? templates.find((t) => t.id === active.templateId) : undefined;
+  const templateExercisesChanged = (() => {
+    if (!sourceTpl) return false;
+    const now = [...active.exercises.map((e) => e.exerciseId)].sort();
+    const was = [...sourceTpl.exercises.map((e) => e.exerciseId)].sort();
+    return now.length !== was.length || now.some((id, i) => id !== was[i]);
+  })();
+  const toTemplateExercises = (): TemplateExercise[] =>
+    active.exercises.map((we) => ({
+      exerciseId: we.exerciseId,
+      exerciseName: we.name,
+      muscleGroup: we.muscleGroup,
+      notes: we.notes || undefined,
+    }));
   const groups = groupExercises(active.exercises);
 
   const onCompleteExercise = (weId: string) => {
@@ -445,6 +465,21 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
     setConfirmFinish(false);
     const summary = finishWorkout();
     if (summary) navigation.navigate('WorkoutComplete', { summary });
+  };
+
+  const onUpdateTemplate = () => {
+    if (!sourceTpl) return;
+    updateTemplate(sourceTpl.id, { exercises: toTemplateExercises() });
+    showToast(`TEMPLATE UPDATED · ${sourceTpl.name.toUpperCase()}`, colors.primary);
+  };
+
+  const onSaveAsNewTemplate = () => {
+    const name = saveAsName.trim();
+    if (!name) return;
+    addTemplate(name, toTemplateExercises());
+    setSaveAsOpen(false);
+    setSaveAsName('');
+    showToast(`TEMPLATE SAVED · ${name.toUpperCase()}`, colors.primary);
   };
 
   const renderCard = (we: WorkoutExercise, label?: string) => (
@@ -608,6 +643,15 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
           </View>
         ) : (
           <View style={styles.footer}>
+            {templateExercisesChanged ? (
+              <>
+                <Text style={styles.tplSyncLabel}>YOU CHANGED THIS TEMPLATE’S EXERCISES</Text>
+                <View style={styles.tplSyncRow}>
+                  <PrimaryButton title="Update Template" variant="secondary" size="sm" onPress={onUpdateTemplate} style={styles.flex} />
+                  <PrimaryButton title="Save as New" variant="secondary" size="sm" onPress={() => setSaveAsOpen(true)} style={styles.flex} />
+                </View>
+              </>
+            ) : null}
             <PrimaryButton
               title="Finish Workout"
               icon="flag"
@@ -657,6 +701,30 @@ export default function WorkoutScreen({ navigation }: TabScreenProps<'Workout'>)
             <View style={styles.confirmActions}>
               <PrimaryButton title="Keep going" variant="secondary" size="md" onPress={() => setConfirmFinish(false)} style={styles.flex} />
               <PrimaryButton title="Finish" icon="flag" size="md" onPress={doFinish} style={styles.flex} />
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Save the modified exercise list as a new template. */}
+      <Modal visible={saveAsOpen} transparent animationType="fade" onRequestClose={() => setSaveAsOpen(false)}>
+        <Pressable style={styles.confirmBackdrop} onPress={() => setSaveAsOpen(false)}>
+          <Pressable style={styles.confirmDialog} onPress={() => {}}>
+            <Text style={styles.confirmKicker}>SAVE AS NEW TEMPLATE</Text>
+            <TextInput
+              value={saveAsName}
+              onChangeText={setSaveAsName}
+              placeholder="Template name"
+              placeholderTextColor={colors.textFaint}
+              style={styles.saveAsInput}
+              autoFocus
+              maxLength={28}
+              returnKeyType="done"
+              onSubmitEditing={onSaveAsNewTemplate}
+            />
+            <View style={styles.confirmActions}>
+              <PrimaryButton title="Cancel" variant="secondary" size="md" onPress={() => setSaveAsOpen(false)} style={styles.flex} />
+              <PrimaryButton title="Save" icon="checkmark" size="md" onPress={onSaveAsNewTemplate} disabled={!saveAsName.trim()} style={styles.flex} />
             </View>
           </Pressable>
         </Pressable>
@@ -795,6 +863,20 @@ const styles = StyleSheet.create({
   emptyTitle: { color: colors.text, fontFamily: family.display, fontSize: font.h2, lineHeight: Math.ceil(font.h2 * 1.15), letterSpacing: 1, includeFontPadding: false, marginTop: spacing.sm },
   emptyText: { color: colors.textDim, fontFamily: family.body, fontSize: font.small, textAlign: 'center' },
   footer: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.md, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.bgElevated },
+  tplSyncLabel: { color: colors.textDim, fontFamily: family.medium, fontSize: font.tiny, letterSpacing: 1, textAlign: 'center', marginBottom: spacing.sm },
+  tplSyncRow: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.md },
+  saveAsInput: {
+    backgroundColor: colors.card2,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.lg,
+    height: 50,
+    color: colors.text,
+    fontFamily: family.medium,
+    fontSize: font.body,
+    marginTop: spacing.lg,
+  },
 
   // Desktop exercise grid
   exerciseGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg },
