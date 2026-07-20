@@ -46,6 +46,10 @@ interface StoreState {
   loadFromServer: (userId: string) => Promise<void>;
   /** Clear the in-memory/local cache on sign-out. */
   resetLocal: () => void;
+  /** Adopt an auth user id without touching local data. Used when the server
+   *  load can't run (offline) but the rehydrated cache belongs to this account,
+   *  so offline writes still enqueue against the right user. */
+  setUserId: (userId: string) => void;
 
   // library
   addExercise: (name: string, muscleGroup: MuscleGroup) => Exercise;
@@ -258,7 +262,14 @@ export const useStore = create<StoreState>()(
           templates: data.templates,
           settings,
           bodyWeights: mergeBodyWeights(),
-          activeWorkout: local.userId === userId ? local.activeWorkout : null,
+          // Keep the in-progress workout across a reload / PWA reopen. `userId` is
+          // runtime-only (never persisted), so after a cold start local.userId is
+          // null even though the rehydrated activeWorkout belongs to this account —
+          // treat null as "same user" and keep it. Only a genuine account switch (a
+          // different non-null id still in memory) drops it; sign-out already clears
+          // it via resetLocal.
+          activeWorkout:
+            local.userId === null || local.userId === userId ? local.activeWorkout : null,
         });
 
         // Heal the server: push back any workout whose server copy lost its
@@ -276,6 +287,8 @@ export const useStore = create<StoreState>()(
           settings: DEFAULT_SETTINGS,
           bodyWeights: [],
         }),
+
+      setUserId: (userId) => set({ userId }),
 
       factoryReset: () =>
         set({

@@ -50,6 +50,7 @@ function AppContent() {
   const hydrated = useStore((s) => s.hydrated);
   const loadFromServer = useStore((s) => s.loadFromServer);
   const resetLocal = useStore((s) => s.resetLocal);
+  const setUserId = useStore((s) => s.setUserId);
 
   // `booted` tracks the per-session data load so we don't flash one account's
   // cached data while another's is loading (or after sign-out).
@@ -66,9 +67,17 @@ function AppContent() {
     }
     loadFromServer(userId)
       .catch((err) => {
-        // Don't leave another account's data behind if the load fails.
         console.warn('[app] loadFromServer failed:', err?.message ?? err);
-        resetLocal();
+        // The load failed (typically offline). Only discard the cache on a live
+        // switch to a *different* account — never show the wrong user's data.
+        // loadFromServer leaves store.userId untouched when it throws, so a null
+        // id means a cold boot and an equal id means a refresh of the same
+        // account: either way the rehydrated cache belongs to this user, so keep
+        // it (an in-progress workout survives an offline reopen) and adopt the id
+        // so writes made offline still queue for the next sync.
+        const cachedOwner = useStore.getState().userId;
+        if (cachedOwner !== null && cachedOwner !== userId) resetLocal();
+        else setUserId(userId);
       })
       .finally(() => {
         if (!cancelled) setBooted(true);
@@ -76,7 +85,7 @@ function AppContent() {
     return () => {
       cancelled = true;
     };
-  }, [userId, loadFromServer, resetLocal]);
+  }, [userId, loadFromServer, resetLocal, setUserId]);
 
   const ready = hydrated && !loading && booted;
 

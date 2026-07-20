@@ -1,9 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { BottomTabBar, createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import React from 'react';
+import React, { useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useResponsive } from '../hooks/useResponsive';
+import { useStore } from '../store/useStore';
 import ExercisesScreen from '../screens/ExercisesScreen';
 // History screen is intentionally preserved but currently unlinked from
 // navigation. The file (HistoryScreen.tsx) remains in the project and may be
@@ -31,9 +32,15 @@ const ICONS: Record<keyof TabParamList, { on: IconName; off: IconName }> = {
 export default function TabNavigator() {
   const insets = useSafeAreaInsets();
   const { isDesktop } = useResponsive();
+  // Captured once on mount: if a session was restored from storage (e.g. the PWA
+  // was closed mid-workout), open straight to the Workout tab so it resumes where
+  // the user left off. Reading getState() rather than a live selector keeps this a
+  // one-time boot decision — starting or finishing a workout later won't re-route.
+  const [resumeWorkout] = useState(() => useStore.getState().activeWorkout !== null);
 
   return (
     <Tab.Navigator
+      initialRouteName={resumeWorkout ? 'Workout' : 'Home'}
       tabBar={(props) => (isDesktop ? <SidebarNav {...props} /> : <BottomTabBar {...props} />)}
       screenOptions={({ route }) => ({
         headerShown: false,
